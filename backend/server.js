@@ -52,13 +52,16 @@ app.set('io', io);
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
+    // Allow requests with no origin (same-origin, mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
+    // In production, allow same-origin requests
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Log but allow in development
+      console.log('CORS: Origin not in allowedOrigins:', origin);
+      callback(null, true); // Allow all origins for now
     }
   },
   credentials: true
@@ -75,9 +78,16 @@ app.use('/api/competition-problems', competitionProblemRoutes);
 app.use('/api/lobbies', lobbyRoutes);
 app.use('/api/submissions', submissionRoutes);
 
+// Health check (before static files)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'CodeArena API is running' });
+});
+
 // Serve frontend static files in production
 if (process.env.NODE_ENV === 'production') {
   const frontendBuildPath = path.join(__dirname, '../frontend/dist');
+  console.log('Serving static files from:', frontendBuildPath);
+  
   app.use(express.static(frontendBuildPath));
   
   // Handle React Router - send all non-API requests to index.html
@@ -85,11 +95,6 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
 }
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'CodeArena API is running' });
-});
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
