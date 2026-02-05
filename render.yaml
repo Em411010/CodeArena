@@ -1,0 +1,57 @@
+services:
+  # Backend API Service
+  - type: web
+    name: codearena-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false  # Add manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true  # Render will auto-generate
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: codearena-frontend
+          property: url
+      - key: GOOGLE_CLIENT_ID
+        sync: false  # Add manually if using OAuth
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false  # Add manually if using OAuth
+      - key: GOOGLE_CALLBACK_URL
+        sync: false  # Add manually if using OAuth
+      - key: FACEBOOK_APP_ID
+        sync: false  # Add manually if using OAuth
+      - key: FACEBOOK_APP_SECRET
+        sync: false  # Add manually if using OAuth
+      - key: FACEBOOK_CALLBACK_URL
+        sync: false  # Add manually if using OAuth
+    healthCheckPath: /api/health
+
+  # Frontend Web Service
+  - type: web
+    name: codearena-frontend
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: codearena-backend
+          envVarKey: RENDER_EXTERNAL_URL
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

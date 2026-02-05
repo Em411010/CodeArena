@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-base-200;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-neutral rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-base-content/30;
+}
+
+/* Code editor customization */
+.monaco-editor {
+  border-radius: 0.5rem;
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(14, 165, 233, 0.5); }
+  50% { border-color: rgba(14, 165, 233, 1); }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s infinite;
+}
+
+/* React Hot Toast custom styles */
+.toast-custom {
+  @apply bg-base-300 text-base-content border border-neutral;
+}
+
