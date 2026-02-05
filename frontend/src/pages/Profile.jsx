@@ -29,7 +29,6 @@ const Profile = () => {
         <p className="text-gray-400 mt-1">Manage your account information</p>
       </div>
 
-      {/* Account Info Card */}
       <div className="bg-arena-card border border-arena-border rounded-xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Account Information</h2>
         <div className="space-y-4">
@@ -54,7 +53,6 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Profile Form */}
       <div className="bg-arena-card border border-arena-border rounded-xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Profile Details</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -124,7 +122,6 @@ const Profile = () => {
         </form>
       </div>
 
-      {/* Stats Card */}
       <div className="bg-arena-card border border-arena-border rounded-xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Statistics</h2>
         <div className="grid grid-cols-3 gap-4">

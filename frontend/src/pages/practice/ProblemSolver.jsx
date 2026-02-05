@@ -119,7 +119,6 @@ const ProblemSolver = () => {
 
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-4">
           <Link
@@ -167,9 +166,7 @@ const ProblemSolver = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-        {/* Problem Description */}
         <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden flex flex-col">
           <button
             onClick={() => setShowDescription(!showDescription)}
@@ -225,9 +222,7 @@ const ProblemSolver = () => {
           </div>
         </div>
 
-        {/* Code Editor & Result */}
         <div className="flex flex-col min-h-0">
-          {/* Editor */}
           <div className="flex-1 bg-arena-card border border-arena-border rounded-xl overflow-hidden min-h-[300px]">
             <Editor
               height="100%"
@@ -247,7 +242,6 @@ const ProblemSolver = () => {
             />
           </div>
 
-          {/* Result */}
           {result && (
             <div className="mt-4 bg-arena-card border border-arena-border rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">

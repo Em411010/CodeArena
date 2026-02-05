@@ -49,7 +49,6 @@ const DashboardLayout = () => {
 
   const SidebarContent = ({ onLinkClick = () => {} }) => (
     <>
-      {/* Logo */}
       <div className="flex items-center h-16 px-6 border-b border-base-content/10">
         <Link to="/dashboard" className="flex items-center gap-2">
           <img src="/logo.png" alt="CodeArena" className="h-8 w-8" />
@@ -57,7 +56,6 @@ const DashboardLayout = () => {
         </Link>
       </div>
 
-      {/* Navigation */}
       <ul className="menu p-4 w-full">
         {navItems.map((item) => (
           <li key={item.name}>
@@ -72,7 +70,6 @@ const DashboardLayout = () => {
           </li>
         ))}
 
-        {/* Teacher Section */}
         {(isTeacher || isAdmin) && (
           <>
             <li className="menu-title mt-4">Teacher</li>
@@ -91,7 +88,6 @@ const DashboardLayout = () => {
           </>
         )}
 
-        {/* Admin Section */}
         {isAdmin && (
           <>
             <li className="menu-title mt-4">Admin</li>
@@ -110,7 +106,6 @@ const DashboardLayout = () => {
           </>
         )}
 
-        {/* Divider */}
         <li className="menu-title mt-4">Account</li>
         <li>
           <Link to="/profile" onClick={onLinkClick}>
@@ -138,9 +133,7 @@ const DashboardLayout = () => {
         onChange={(e) => setSidebarOpen(e.target.checked)}
       />
 
-      {/* Main Content */}
       <div className="drawer-content flex flex-col">
-        {/* Navbar */}
         <header className="navbar bg-base-300 border-b border-base-content/10 lg:hidden">
           <div className="flex-none">
             <label htmlFor="sidebar-drawer" className="btn btn-square btn-ghost drawer-button">
@@ -172,7 +165,6 @@ const DashboardLayout = () => {
           </div>
         </header>
 
-        {/* Desktop Header */}
         <header className="navbar bg-base-300 border-b border-base-content/10 hidden lg:flex">
           <div className="flex-1"></div>
           <div className="flex-none">
@@ -199,12 +191,10 @@ const DashboardLayout = () => {
           </div>
         </header>
 
-        {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
 
-        {/* Footer */}
         <footer className="py-4 px-6 border-t border-base-content/10 bg-base-300">
           <div className="flex items-center justify-center gap-2 text-sm text-base-content/70">
             <span>Developed by</span>
@@ -223,7 +213,6 @@ const DashboardLayout = () => {
         </footer>
       </div>
 
-      {/* Sidebar */}
       <div className="drawer-side z-50">
         <label htmlFor="sidebar-drawer" aria-label="close sidebar" className="drawer-overlay"></label>
         <aside className="bg-base-300 w-64 min-h-full border-r border-base-content/10">

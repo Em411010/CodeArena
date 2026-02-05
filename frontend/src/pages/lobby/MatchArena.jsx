@@ -187,7 +187,6 @@ const MatchArena = () => {
 
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col -m-4 sm:-m-6 lg:-m-8">
-      {/* Top Bar */}
       <div className="bg-arena-dark border-b border-arena-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h1 className="text-lg font-bold text-white">{lobby?.name}</h1>
@@ -226,11 +225,8 @@ const MatchArena = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex min-h-0">
-        {/* Problem & Editor */}
         <div className={`flex-1 flex flex-col lg:flex-row min-h-0 ${showLeaderboard ? 'lg:mr-80' : ''}`}>
-          {/* Problem Description */}
           <div className="lg:w-1/2 bg-arena-dark border-r border-arena-border overflow-y-auto p-4">
             {currentProblem && (
               <div className="prose prose-invert max-w-none">
@@ -273,9 +269,7 @@ const MatchArena = () => {
             )}
           </div>
 
-          {/* Editor */}
           <div className="lg:w-1/2 flex flex-col min-h-0">
-            {/* Editor Toolbar */}
             <div className="bg-arena-dark border-b border-arena-border px-4 py-2 flex items-center justify-between">
               <select
                 value={language}
@@ -299,7 +293,6 @@ const MatchArena = () => {
               </button>
             </div>
 
-            {/* Code Editor */}
             <div className="flex-1 min-h-[300px]">
               <Editor
                 height="100%"
@@ -317,7 +310,6 @@ const MatchArena = () => {
               />
             </div>
 
-            {/* Result */}
             {result && (
               <div className="bg-arena-dark border-t border-arena-border p-3">
                 <div className="flex items-center space-x-3">
@@ -341,7 +333,6 @@ const MatchArena = () => {
           </div>
         </div>
 
-        {/* Leaderboard Sidebar */}
         {showLeaderboard && (
           <div className="fixed right-0 top-0 h-full w-80 bg-arena-dark border-l border-arena-border overflow-y-auto z-40 pt-16">
             <div className="p-4">

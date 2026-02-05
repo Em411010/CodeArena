@@ -58,7 +58,6 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
       <div className="card bg-base-300">
         <div className="card-body">
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -123,7 +122,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -145,7 +143,6 @@ const Dashboard = () => {
             </Link>
           ))}
 
-          {/* Teacher Actions */}
           {(isTeacher || isAdmin) && isApproved && teacherQuickActions.map((action) => (
             <Link
               key={action.title}

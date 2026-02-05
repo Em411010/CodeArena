@@ -68,7 +68,6 @@ const AdminDashboard = () => {
         <p className="text-gray-400 mt-1">Platform overview and management</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {statCards.map((stat) => (
           <div
@@ -88,7 +87,6 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* Quick Actions */}
       <div className="bg-arena-card border border-arena-border rounded-xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -116,7 +114,6 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Platform Status */}
       <div className="bg-arena-card border border-arena-border rounded-xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Platform Status</h2>
         <div className="space-y-4">
