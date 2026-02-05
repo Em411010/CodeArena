@@ -3,9 +3,14 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Load env vars FIRST before importing passport (which needs env vars)
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import connectDB from './config/db.js';
 import passport from './config/passport.js';
@@ -69,6 +74,17 @@ app.use('/api/sample-problems', sampleProblemRoutes);
 app.use('/api/competition-problems', competitionProblemRoutes);
 app.use('/api/lobbies', lobbyRoutes);
 app.use('/api/submissions', submissionRoutes);
+
+// Serve frontend static files in production
+if (process.env.NODE_ENV === 'production') {
+  const frontendBuildPath = path.join(__dirname, '../frontend/dist');
+  app.use(express.static(frontendBuildPath));
+  
+  // Handle React Router - send all non-API requests to index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
