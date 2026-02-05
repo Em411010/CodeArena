@@ -67,7 +67,6 @@ const LobbyWaiting = () => {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-arena-card border border-arena-border rounded-xl p-8 text-center">
-        {/* Waiting Animation */}
         <div className="relative w-24 h-24 mx-auto mb-6">
           <div className="absolute inset-0 rounded-full border-4 border-arena-border"></div>
           <div className="absolute inset-0 rounded-full border-4 border-primary-500 border-t-transparent animate-spin"></div>
@@ -83,7 +82,6 @@ const LobbyWaiting = () => {
           Waiting for the match to start...
         </p>
 
-        {/* Info Cards */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="bg-arena-dark rounded-lg p-4">
             <Users className="h-6 w-6 text-primary-500 mx-auto mb-2" />
@@ -97,12 +95,10 @@ const LobbyWaiting = () => {
           </div>
         </div>
 
-        {/* Teacher Info */}
         <div className="text-gray-400 text-sm">
           <p>Hosted by <span className="text-white">{lobby?.teacher?.username}</span></p>
         </div>
 
-        {/* Status */}
         <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
           <p className="text-yellow-500 text-sm">
             🔒 Problems will be revealed when the match starts

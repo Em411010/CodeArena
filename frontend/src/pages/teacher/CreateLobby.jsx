@@ -112,7 +112,6 @@ const CreateLobby = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basic Info */}
         <div className="bg-arena-card border border-arena-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Lobby Details</h2>
           <div className="space-y-4">
@@ -167,7 +166,6 @@ const CreateLobby = () => {
           </div>
         </div>
 
-        {/* Settings */}
         <div className="bg-arena-card border border-arena-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Settings</h2>
           <div className="space-y-3">
@@ -194,7 +192,6 @@ const CreateLobby = () => {
           </div>
         </div>
 
-        {/* Select Problems */}
         <div className="bg-arena-card border border-arena-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">
             Select Problems <span className="text-gray-400 font-normal">({formData.problems.length} selected)</span>
@@ -243,7 +240,6 @@ const CreateLobby = () => {
           )}
         </div>
 
-        {/* Submit */}
         <div className="flex justify-end space-x-3">
           <button
             type="button"

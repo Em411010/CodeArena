@@ -130,7 +130,6 @@ const TeacherLobbies = () => {
                   </div>
                 </div>
                 
-                {/* Access Code */}
                 <div className="flex items-center space-x-2">
                   <div className="bg-arena-dark rounded-lg px-4 py-2 flex items-center space-x-2">
                     <span className="text-gray-400 text-sm">Code:</span>
@@ -144,7 +143,6 @@ const TeacherLobbies = () => {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex items-center space-x-2">
                   {lobby.status === 'WAITING' && (
                     <>

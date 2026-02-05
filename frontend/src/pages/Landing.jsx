@@ -37,7 +37,6 @@ const Landing = () => {
 
   return (
     <div className="bg-base-200">
-      {/* Hero Section */}
       <div className="hero min-h-[70vh] bg-gradient-to-br from-primary/10 to-transparent">
         <div className="hero-content text-center py-16">
           <div className="max-w-3xl">
@@ -95,7 +94,6 @@ const Landing = () => {
         </div>
       </div>
 
-      {/* How It Works Section */}
       <div className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">

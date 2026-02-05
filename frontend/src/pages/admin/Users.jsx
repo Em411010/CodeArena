@@ -94,7 +94,6 @@ const AdminUsers = () => {
         <p className="text-gray-400 mt-1">Manage users and approve teacher accounts</p>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -127,7 +126,6 @@ const AdminUsers = () => {
         </label>
       </div>
 
-      {/* Users Table */}
       <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden">
         {filteredUsers.length === 0 ? (
           <div className="p-12 text-center">
@@ -215,7 +213,6 @@ const AdminUsers = () => {
         )}
       </div>
 
-      {/* Summary */}
       <div className="flex items-center justify-between text-sm text-gray-400">
         <span>Showing {filteredUsers.length} of {users.length} users</span>
         <span>

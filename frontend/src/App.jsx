@@ -86,7 +86,6 @@ const PublicRoute = ({ children }) => {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Public Routes */}
       <Route element={<MainLayout />}>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={
@@ -102,7 +101,6 @@ function AppRoutes() {
         <Route path="/oauth/callback" element={<OAuthCallback />} />
       </Route>
 
-      {/* Protected Dashboard Routes */}
       <Route element={
         <ProtectedRoute>
           <DashboardLayout />
@@ -111,7 +109,6 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
 
-        {/* Practice */}
         <Route path="/practice" element={<SampleProblems />} />
         <Route path="/practice/:id" element={<ProblemSolver />} />
 
@@ -121,7 +118,6 @@ function AppRoutes() {
         <Route path="/match/:id" element={<MatchArena />} />
         <Route path="/my-matches" element={<MyMatches />} />
 
-        {/* Teacher Routes */}
         <Route path="/teacher/problems" element={
           <ProtectedRoute allowedRoles={['teacher', 'admin']} requireApproval>
             <TeacherProblems />
@@ -148,7 +144,6 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* Admin Routes */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminDashboard />
@@ -161,7 +156,6 @@ function AppRoutes() {
         } />
       </Route>
 
-      {/* 404 */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

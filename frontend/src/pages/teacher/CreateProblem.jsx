@@ -106,7 +106,6 @@ const CreateProblem = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basic Info */}
         <div className="bg-arena-card border border-arena-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Basic Information</h2>
           <div className="space-y-4">
@@ -175,7 +174,6 @@ const CreateProblem = () => {
           </div>
         </div>
 
-        {/* Languages */}
         <div className="bg-arena-card border border-arena-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Allowed Languages</h2>
           <div className="flex flex-wrap gap-2">
@@ -196,7 +194,6 @@ const CreateProblem = () => {
           </div>
         </div>
 
-        {/* Sample I/O */}
         <div className="bg-arena-card border border-arena-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Sample Input/Output</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -225,7 +222,6 @@ const CreateProblem = () => {
           </div>
         </div>
 
-        {/* Test Cases */}
         <div className="bg-arena-card border border-arena-border rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white">Test Cases</h2>
@@ -291,7 +287,6 @@ const CreateProblem = () => {
           </div>
         </div>
 
-        {/* Submit */}
         <div className="flex justify-end space-x-3">
           <button
             type="button"

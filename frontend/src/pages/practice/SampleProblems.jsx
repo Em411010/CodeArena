@@ -54,7 +54,6 @@ const SampleProblems = () => {
         </p>
       </div>
 
-      {/* Filters */}
       <div className="bg-arena-card border border-arena-border rounded-xl p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <form onSubmit={handleSearch} className="flex-1">
@@ -85,7 +84,6 @@ const SampleProblems = () => {
         </div>
       </div>
 
-      {/* Problems List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary-500" />

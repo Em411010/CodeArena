@@ -100,7 +100,6 @@ const ManageLobby = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
@@ -155,7 +154,6 @@ const ManageLobby = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex space-x-1 bg-arena-dark rounded-lg p-1">
         <button
           onClick={() => setActiveTab('leaderboard')}
@@ -191,7 +189,6 @@ const ManageLobby = () => {
         </button>
       </div>
 
-      {/* Content */}
       <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden">
         {activeTab === 'leaderboard' && (
           <table className="w-full">
