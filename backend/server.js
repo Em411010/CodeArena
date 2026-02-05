@@ -52,16 +52,21 @@ app.set('io', io);
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (same-origin, mobile apps, Postman, etc.)
+    // Allow requests with no origin (same-origin requests, mobile apps, Postman)
     if (!origin) return callback(null, true);
     
-    // In production, allow same-origin requests
+    // In production, allow requests from same domain
+    if (process.env.NODE_ENV === 'production') {
+      // Allow any origin in production (since frontend is served from same domain)
+      return callback(null, true);
+    }
+    
+    // In development, check allowed origins
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      // Log but allow in development
       console.log('CORS: Origin not in allowedOrigins:', origin);
-      callback(null, true); // Allow all origins for now
+      callback(null, true); // Allow for now
     }
   },
   credentials: true
