@@ -438,10 +438,19 @@ router.get('/:id/leaderboard', protect, async (req, res) => {
     const isParticipant = lobby.isParticipant(req.user.id);
     const isAdmin = req.user.role === 'admin';
 
+    console.log('Leaderboard access check:', {
+      userId: req.user.id,
+      lobbyId: lobby._id,
+      isTeacher,
+      isParticipant,
+      isAdmin,
+      participantsCount: lobby.participants.length
+    });
+
     if (!isTeacher && !isParticipant && !isAdmin) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized'
+        message: 'Not authorized to view leaderboard'
       });
     }
 
