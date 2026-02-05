@@ -115,7 +115,7 @@ function AppRoutes() {
         <Route path="/practice" element={<SampleProblems />} />
         <Route path="/practice/:id" element={<ProblemSolver />} />
 
-        {/* Lobby */}
+
         <Route path="/join" element={<JoinLobby />} />
         <Route path="/lobby/:id" element={<LobbyWaiting />} />
         <Route path="/match/:id" element={<MatchArena />} />

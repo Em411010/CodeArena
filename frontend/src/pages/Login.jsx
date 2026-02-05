@@ -105,7 +105,6 @@ const Login = () => {
 
           <div className="divider">OR</div>
 
-          {/* Social Login Buttons */}
           <div className="space-y-3">
             <a
               href={`${API_URL}/auth/google`}

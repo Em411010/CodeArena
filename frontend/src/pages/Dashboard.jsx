@@ -86,7 +86,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Teacher Pending Approval Warning */}
       {isTeacher && !isApproved && (
         <div className="alert alert-warning">
           <AlertCircle className="h-5 w-5" />
@@ -100,7 +99,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Stats Cards */}
       <div className="stats stats-vertical lg:stats-horizontal shadow w-full bg-base-300">
         <div className="stat">
           <div className="stat-figure text-success">
@@ -168,7 +166,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Recent Activity Placeholder */}
+
       <div className="card bg-base-300">
         <div className="card-body">
           <h2 className="card-title">Recent Activity</h2>

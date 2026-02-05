@@ -3,7 +3,6 @@ import { Outlet, Link } from 'react-router-dom';
 const MainLayout = () => {
   return (
     <div className="min-h-screen bg-base-200 flex flex-col">
-      {/* Navigation */}
       <div className="navbar bg-base-300 border-b border-base-content/10">
         <div className="navbar-start">
           <div className="dropdown">
@@ -32,12 +31,10 @@ const MainLayout = () => {
         </div>
       </div>
 
-      {/* Page Content */}
       <main className="flex-1">
         <Outlet />
       </main>
 
-      {/* Footer */}
       <footer className="footer footer-center p-6 bg-base-300 text-base-content border-t border-base-content/10">
         <aside>
           <div className="flex items-center gap-2 mb-2">

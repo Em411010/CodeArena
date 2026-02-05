@@ -62,7 +62,6 @@ const Register = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Role Selection */}
             <div className="form-control">
               <label className="label">
                 <span className="label-text">I am a...</span>
@@ -196,7 +195,6 @@ const Register = () => {
 
           <div className="divider">OR</div>
 
-          {/* Social Login Buttons */}
           <div className="space-y-3">
             <a
               href={`${API_URL}/auth/google`}

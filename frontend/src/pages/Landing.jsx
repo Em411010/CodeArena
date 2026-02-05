@@ -64,7 +64,7 @@ const Landing = () => {
         </div>
       </div>
 
-      {/* Features Section */}
+
       <div className="py-20 bg-base-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -131,7 +131,7 @@ const Landing = () => {
         </div>
       </div>
 
-      {/* CTA Section */}
+
       <div className="py-20 bg-gradient-to-r from-primary/20 to-secondary/20">
         <div className="max-w-4xl mx-auto text-center px-4">
           <h2 className="text-3xl font-bold mb-4">
