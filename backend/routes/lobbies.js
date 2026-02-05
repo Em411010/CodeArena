@@ -182,8 +182,11 @@ router.get('/:id', protect, async (req, res) => {
     const isTeacher = lobby.teacher._id.toString() === req.user.id;
     const isParticipant = lobby.isParticipant(req.user.id);
     const isAdmin = req.user.role === 'admin';
+    const isStudent = req.user.role === 'student';
 
-    if (!isTeacher && !isParticipant && !isAdmin) {
+    // Students can view lobby if it's in WAITING status (to join)
+    // Or if they're already participants
+    if (!isTeacher && !isParticipant && !isAdmin && !isStudent) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this lobby'
