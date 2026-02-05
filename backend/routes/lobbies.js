@@ -424,7 +424,8 @@ router.put('/:id/end', protect, authorize('teacher', 'admin'), async (req, res) 
 router.get('/:id/leaderboard', protect, async (req, res) => {
   try {
     const lobby = await Lobby.findById(req.params.id)
-      .populate('participants.user', 'username');
+      .populate('participants.user', 'username')
+      .populate('teacher', 'username');
 
     if (!lobby) {
       return res.status(404).json({
@@ -434,18 +435,9 @@ router.get('/:id/leaderboard', protect, async (req, res) => {
     }
 
     // Check access
-    const isTeacher = lobby.teacher.toString() === req.user.id;
+    const isTeacher = lobby.teacher._id.toString() === req.user.id;
     const isParticipant = lobby.isParticipant(req.user.id);
     const isAdmin = req.user.role === 'admin';
-
-    console.log('Leaderboard access check:', {
-      userId: req.user.id,
-      lobbyId: lobby._id,
-      isTeacher,
-      isParticipant,
-      isAdmin,
-      participantsCount: lobby.participants.length
-    });
 
     if (!isTeacher && !isParticipant && !isAdmin) {
       return res.status(403).json({
