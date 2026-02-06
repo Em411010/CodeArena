@@ -24,11 +24,14 @@ import ProblemSolver from './pages/practice/ProblemSolver';
 import JoinLobby from './pages/lobby/JoinLobby';
 import LobbyWaiting from './pages/lobby/LobbyWaiting';
 import MatchArena from './pages/lobby/MatchArena';
+import QuizBeeArena from './pages/lobby/QuizBeeArena';
+import LeaderboardPage from './pages/lobby/LeaderboardPage';
 import MyMatches from './pages/lobby/MyMatches';
 
 // Teacher Pages
 import TeacherProblems from './pages/teacher/Problems';
 import CreateProblem from './pages/teacher/CreateProblem';
+import EditProblem from './pages/teacher/EditProblem';
 import TeacherLobbies from './pages/teacher/Lobbies';
 import CreateLobby from './pages/teacher/CreateLobby';
 import ManageLobby from './pages/teacher/ManageLobby';
@@ -36,6 +39,7 @@ import ManageLobby from './pages/teacher/ManageLobby';
 // Admin Pages
 import AdminUsers from './pages/admin/Users';
 import AdminDashboard from './pages/admin/Dashboard';
+import AdminProblems from './pages/admin/Problems';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [], requireApproval = false }) => {
@@ -116,6 +120,8 @@ function AppRoutes() {
         <Route path="/join" element={<JoinLobby />} />
         <Route path="/lobby/:id" element={<LobbyWaiting />} />
         <Route path="/match/:id" element={<MatchArena />} />
+        <Route path="/quiz-bee/:id" element={<QuizBeeArena />} />
+        <Route path="/match/:id/leaderboard" element={<LeaderboardPage />} />
         <Route path="/my-matches" element={<MyMatches />} />
 
         <Route path="/teacher/problems" element={
@@ -126,6 +132,11 @@ function AppRoutes() {
         <Route path="/teacher/problems/create" element={
           <ProtectedRoute allowedRoles={['teacher', 'admin']} requireApproval>
             <CreateProblem />
+          </ProtectedRoute>
+        } />
+        <Route path="/teacher/problems/edit/:id" element={
+          <ProtectedRoute allowedRoles={['teacher', 'admin']} requireApproval>
+            <EditProblem />
           </ProtectedRoute>
         } />
         <Route path="/teacher/lobbies" element={
@@ -152,6 +163,11 @@ function AppRoutes() {
         <Route path="/admin/users" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminUsers />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/problems" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminProblems />
           </ProtectedRoute>
         } />
       </Route>

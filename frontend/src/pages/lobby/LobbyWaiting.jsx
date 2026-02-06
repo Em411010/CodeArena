@@ -22,7 +22,8 @@ const LobbyWaiting = () => {
     // Listen for events
     socketService.onMatchStarted((data) => {
       toast.success('Match has started!');
-      navigate(`/match/${id}`);
+      const matchPath = data.matchType === 'QUIZ_BEE' ? `/quiz-bee/${id}` : `/match/${id}`;
+      navigate(matchPath);
     });
 
     socketService.onParticipantJoined((data) => {

@@ -76,6 +76,10 @@ const competitionProblemSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  isShared: {
+    type: Boolean,
+    default: false // true for admin-created problems visible to all teachers
+  },
   tags: [{
     type: String
   }],

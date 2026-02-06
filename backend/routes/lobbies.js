@@ -240,7 +240,9 @@ router.get('/:id', protect, async (req, res) => {
 router.post('/', protect, authorize('teacher', 'admin'), requireApproval, [
   body('name').trim().notEmpty().withMessage('Lobby name is required'),
   body('duration').isInt({ min: 5, max: 480 }).withMessage('Duration must be 5-480 minutes'),
-  body('problems').isArray({ min: 1 }).withMessage('At least one problem is required')
+  body('problems').isArray({ min: 1 }).withMessage('At least one problem is required'),
+  body('matchType').optional().isIn(['STANDARD', 'QUIZ_BEE']).withMessage('Invalid match type'),
+  body('timePerProblem').optional().isInt({ min: 1, max: 30 }).withMessage('Time per problem must be 1-30 minutes')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -251,7 +253,26 @@ router.post('/', protect, authorize('teacher', 'admin'), requireApproval, [
       });
     }
 
-    const { name, description, duration, problems, settings } = req.body;
+    const { name, description, duration, problems, settings, matchType, timePerProblem } = req.body;
+
+    // Validate quiz bee specific requirements
+    if (matchType === 'QUIZ_BEE') {
+      if (!timePerProblem) {
+        return res.status(400).json({
+          success: false,
+          message: 'Time per problem is required for Quiz Bee mode'
+        });
+      }
+      
+      // Check if total time matches duration
+      const totalTime = timePerProblem * problems.length;
+      if (totalTime > duration) {
+        return res.status(400).json({
+          success: false,
+          message: `Total time for all problems (${totalTime} min) exceeds match duration (${duration} min)`
+        });
+      }
+    }
 
     // Verify all problems exist and belong to the teacher
     const validProblems = await CompetitionProblem.find({
@@ -266,14 +287,21 @@ router.post('/', protect, authorize('teacher', 'admin'), requireApproval, [
       });
     }
 
-    const lobby = await Lobby.create({
+    const lobbyData = {
       name,
       description,
       duration,
       problems,
       settings,
-      teacher: req.user.id
-    });
+      teacher: req.user.id,
+      matchType: matchType || 'STANDARD'
+    };
+    
+    if (matchType === 'QUIZ_BEE') {
+      lobbyData.timePerProblem = timePerProblem;
+    }
+
+    const lobby = await Lobby.create(lobbyData);
 
     await lobby.populate('problems', 'title difficulty');
 
@@ -324,6 +352,13 @@ router.put('/:id/start', protect, authorize('teacher', 'admin'), async (req, res
     lobby.status = 'ONGOING';
     lobby.startTime = now;
     lobby.endTime = new Date(now.getTime() + lobby.duration * 60000);
+    
+    // For QUIZ_BEE mode, initialize problem tracking
+    if (lobby.matchType === 'QUIZ_BEE') {
+      lobby.currentProblemIndex = 0;
+      lobby.problemStartTime = now;
+    }
+    
     await lobby.save();
 
     // Populate problems for socket event
@@ -331,10 +366,11 @@ router.put('/:id/start', protect, authorize('teacher', 'admin'), async (req, res
 
     // Emit socket event to all participants
     const io = req.app.get('io');
-    io.to(`lobby-${lobby._id}`).emit('match-started', {
+    const eventData = {
       lobbyId: lobby._id,
       startTime: lobby.startTime,
       endTime: lobby.endTime,
+      matchType: lobby.matchType,
       problems: lobby.problems.map(p => ({
         _id: p._id,
         title: p.title,
@@ -350,7 +386,16 @@ router.put('/:id/start', protect, authorize('teacher', 'admin'), async (req, res
         memoryLimit: p.memoryLimit,
         maxScore: p.maxScore
       }))
-    });
+    };
+    
+    // Add quiz bee specific data
+    if (lobby.matchType === 'QUIZ_BEE') {
+      eventData.currentProblemIndex = lobby.currentProblemIndex;
+      eventData.timePerProblem = lobby.timePerProblem;
+      eventData.problemStartTime = lobby.problemStartTime;
+    }
+    
+    io.to(`lobby-${lobby._id}`).emit('match-started', eventData);
 
     res.json({
       success: true,
@@ -438,6 +483,19 @@ router.get('/:id/leaderboard', protect, async (req, res) => {
     const isTeacher = lobby.teacher._id.toString() === req.user.id;
     const isParticipant = lobby.isParticipant(req.user.id);
     const isAdmin = req.user.role === 'admin';
+
+    // Debug logging
+    console.log('=== Leaderboard Access Debug ===');
+    console.log('User ID:', req.user.id);
+    console.log('Teacher ID:', lobby.teacher._id.toString());
+    console.log('Is Teacher:', isTeacher);
+    console.log('Is Participant:', isParticipant);
+    console.log('Is Admin:', isAdmin);
+    console.log('Participants:', lobby.participants.map(p => ({
+      userId: p.user?._id?.toString() || p.user?.toString() || p.user,
+      username: p.user?.username
+    })));
+    console.log('===============================');
 
     if (!isTeacher && !isParticipant && !isAdmin) {
       return res.status(403).json({

@@ -7,16 +7,22 @@ import { protect, authorize, requireApproval } from '../middleware/auth.js';
 const router = express.Router();
 
 // @route   GET /api/competition-problems
-// @desc    Get all competition problems (Teacher only - for their own)
+// @desc    Get all competition problems (Shared + Own for teachers, All for admin)
 // @access  Private/Teacher/Admin
 router.get('/', protect, authorize('teacher', 'admin'), requireApproval, async (req, res) => {
   try {
-    const filter = {};
+    let filter = {};
 
-    // Teachers can only see their own problems
+    // Teachers see shared problems (created by admin) + their own problems
     if (req.user.role === 'teacher') {
-      filter.createdBy = req.user.id;
+      filter = {
+        $or: [
+          { isShared: true },
+          { createdBy: req.user.id }
+        ]
+      };
     }
+    // Admin sees all problems
 
     const problems = await CompetitionProblem.find(filter)
       .populate('createdBy', 'username')
@@ -75,8 +81,10 @@ router.get('/:id', protect, async (req, res) => {
       });
     }
 
-    // Teachers can only see their own problems (unless admin)
-    if (req.user.role === 'teacher' && problem.createdBy.toString() !== req.user.id) {
+    // Teachers can only see their own problems or shared problems (unless admin)
+    if (req.user.role === 'teacher' && 
+        problem.createdBy.toString() !== req.user.id && 
+        !problem.isShared) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this problem'
@@ -96,8 +104,8 @@ router.get('/:id', protect, async (req, res) => {
 });
 
 // @route   POST /api/competition-problems
-// @desc    Create competition problem (Teacher only)
-// @access  Private/Teacher
+// @desc    Create competition problem (Teacher/Admin)
+// @access  Private/Teacher/Admin
 router.post('/', protect, authorize('teacher', 'admin'), requireApproval, [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('description').notEmpty().withMessage('Description is required'),
@@ -114,10 +122,13 @@ router.post('/', protect, authorize('teacher', 'admin'), requireApproval, [
       });
     }
 
-    const problem = await CompetitionProblem.create({
+    const problemData = {
       ...req.body,
-      createdBy: req.user.id
-    });
+      createdBy: req.user.id,
+      isShared: req.user.role === 'admin' ? (req.body.isShared || false) : false
+    };
+
+    const problem = await CompetitionProblem.create(problemData);
 
     res.status(201).json({
       success: true,
@@ -146,12 +157,21 @@ router.put('/:id', protect, authorize('teacher', 'admin'), requireApproval, asyn
       });
     }
 
-    // Teachers can only update their own problems
-    if (req.user.role === 'teacher' && problem.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this problem'
-      });
+    // Teachers can only update their own problems, Admin can update shared problems
+    if (req.user.role === 'teacher') {
+      if (problem.createdBy.toString() !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to update this problem'
+        });
+      }
+      // Teachers cannot make their problems shared
+      delete req.body.isShared;
+    }
+    
+    // Admin can update isShared field
+    if (req.user.role === 'admin' && req.body.isShared !== undefined) {
+      problem.isShared = req.body.isShared;
     }
 
     // Check if problem is used in an ongoing match

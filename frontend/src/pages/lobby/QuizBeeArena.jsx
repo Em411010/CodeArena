@@ -7,12 +7,11 @@ import {
   Clock,
   Loader2,
   Play,
-  ChevronLeft,
-  ChevronRight,
   Trophy,
   CheckCircle,
   XCircle,
   X,
+  ArrowRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,7 +23,7 @@ const defaultCode = {
   c: '#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <math.h>\n#include <ctype.h>\n\nint main() {\n    // Your code here\n    \n    return 0;\n}\n',
 };
 
-const MatchArena = () => {
+const QuizBeeArena = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [lobby, setLobby] = useState(null);
@@ -35,7 +34,8 @@ const MatchArena = () => {
   const [code, setCode] = useState(defaultCode.c);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [problemTimeLeft, setProblemTimeLeft] = useState(0);
+  const [totalTimeLeft, setTotalTimeLeft] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [solvedProblems, setSolvedProblems] = useState(new Set());
@@ -54,15 +54,26 @@ const MatchArena = () => {
       }, 2000);
     });
 
-    socketService.onLeaderboardUpdate((data) => {
+    socketService.onLeaderboardUpdate(() => {
       fetchLeaderboard();
+    });
+
+    // Listen for problem changes
+    socket.on('problem-change', (data) => {
+      if (data.lobbyId === id) {
+        setCurrentProblemIndex(data.currentProblemIndex);
+        setResult(null);
+        toast.info(`Moving to Problem ${data.currentProblemIndex + 1}/${data.totalProblems}`);
+        // Reset code for new problem
+        setCode(defaultCode[language]);
+      }
     });
 
     return () => {
       socketService.leaveLobby(id);
       socketService.removeAllListeners();
     };
-  }, [id, navigate]);
+  }, [id, navigate, language]);
 
   useEffect(() => {
     if (lobby?.endTime) {
@@ -70,47 +81,48 @@ const MatchArena = () => {
         const now = new Date().getTime();
         const end = new Date(lobby.endTime).getTime();
         const diff = Math.max(0, Math.floor((end - now) / 1000));
-        setTimeLeft(diff);
+        setTotalTimeLeft(diff);
 
         if (diff === 0) {
           clearInterval(interval);
-          toast.success('Time is up!');
         }
       }, 1000);
 
       return () => clearInterval(interval);
     }
-  }, [lobby?.endTime]);
+  }, [lobby]);
+
+  useEffect(() => {
+    if (lobby?.problemStartTime && lobby?.timePerProblem) {
+      const interval = setInterval(() => {
+        const now = new Date().getTime();
+        const start = new Date(lobby.problemStartTime).getTime();
+        const elapsed = Math.floor((now - start) / 1000);
+        const remaining = Math.max(0, (lobby.timePerProblem * 60) - elapsed);
+        setProblemTimeLeft(remaining);
+
+        if (remaining === 0) {
+          clearInterval(interval);
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [lobby?.problemStartTime, lobby?.timePerProblem]);
 
   const fetchLobby = async () => {
     try {
       const { data } = await lobbiesAPI.getById(id);
-      
-      if (data.data.status === 'WAITING') {
-        navigate(`/lobby/${id}`);
-        return;
-      }
-      
-      if (data.data.status === 'FINISHED') {
-        toast.error('This match has ended');
-        navigate('/my-matches');
-        return;
-      }
-
       setLobby(data.data);
-      setProblems(data.data.problems || []);
       
-      if (data.data.problems?.length > 0) {
-        const firstProblem = data.data.problems[0];
-        const firstLang = firstProblem.allowedLanguages?.[0] || 'c';
-        setLanguage(firstLang);
-        setCode(defaultCode[firstLang] || defaultCode.c);
-      }
-
+      await data.data.populate('problems');
+      setProblems(data.data.problems);
+      setCurrentProblemIndex(data.data.currentProblemIndex || 0);
+      
       fetchLeaderboard();
     } catch (error) {
       toast.error('Failed to load match');
-      navigate('/join');
+      navigate('/my-matches');
     } finally {
       setLoading(false);
     }
@@ -123,25 +135,6 @@ const MatchArena = () => {
     } catch (error) {
       console.error('Failed to fetch leaderboard');
     }
-  };
-
-  const formatTime = (seconds) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hrs > 0) {
-      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleProblemChange = (index) => {
-    setCurrentProblemIndex(index);
-    const problem = problems[index];
-    const lang = problem.allowedLanguages?.[0] || 'c';
-    setLanguage(lang);
-    setCode(defaultCode[lang] || defaultCode.c);
-    setResult(null);
   };
 
   const handleSubmit = async () => {
@@ -167,19 +160,8 @@ const MatchArena = () => {
 
       if (data.data.verdict === 'ACCEPTED') {
         toast.success('Accepted! 🎉');
-        const newSolvedProblems = new Set([...solvedProblems, currentProblem._id]);
-        setSolvedProblems(newSolvedProblems);
+        setSolvedProblems(prev => new Set([...prev, currentProblem._id]));
         fetchLeaderboard();
-        
-        // Check if all problems are solved
-        if (newSolvedProblems.size === problems.length) {
-          setTimeout(() => {
-            toast.success('All problems solved! Redirecting to leaderboard...', { duration: 3000 });
-            setTimeout(() => {
-              navigate(`/match/${id}/leaderboard`);
-            }, 2000);
-          }, 1000);
-        }
       } else {
         toast.error(`Verdict: ${data.data.verdict.replace('_', ' ')}`);
       }
@@ -199,126 +181,155 @@ const MatchArena = () => {
   }
 
   const currentProblem = problems[currentProblemIndex];
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col -m-4 sm:-m-6 lg:-m-8">
       <div className="bg-arena-dark border-b border-arena-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h1 className="text-lg font-bold text-white">{lobby?.name}</h1>
-          <div className="flex items-center space-x-2">
-            {problems.map((p, idx) => (
-              <button
-                key={p._id}
-                onClick={() => handleProblemChange(idx)}
-                className={`w-8 h-8 rounded-lg text-sm font-medium flex items-center justify-center transition-colors ${
-                  idx === currentProblemIndex
-                    ? 'bg-primary-600 text-white'
-                    : solvedProblems.has(p._id)
-                    ? 'bg-green-600 text-white'
-                    : 'bg-arena-card text-gray-400 hover:bg-arena-border'
-                }`}
-              >
-                {idx + 1}
-              </button>
-            ))}
+          <div className="flex items-center space-x-2 bg-yellow-500/20 px-3 py-1 rounded-lg border border-yellow-500/50">
+            <span className="text-yellow-400 text-sm font-semibold">Quiz Bee Mode</span>
           </div>
         </div>
         <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 bg-primary-500/20 px-3 py-1.5 rounded-lg">
+            <Clock className="h-4 w-4 text-primary-400" />
+            <span className="text-white font-mono font-medium">
+              Problem: {formatTime(problemTimeLeft)}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2 bg-arena-card px-3 py-1.5 rounded-lg">
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span className="text-white font-mono font-medium">
+              Total: {formatTime(totalTimeLeft)}
+            </span>
+          </div>
           <button
             onClick={() => setShowLeaderboard(!showLeaderboard)}
-            className="flex items-center space-x-2 px-3 py-1.5 bg-arena-card rounded-lg text-gray-300 hover:text-white transition-colors"
+            className="flex items-center space-x-2 px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 rounded-lg transition-colors"
           >
-            <Trophy className="h-4 w-4" />
-            <span className="hidden sm:inline">Leaderboard</span>
+            <Trophy className="h-4 w-4 text-yellow-400" />
+            <span className="hidden sm:inline text-white">Leaderboard</span>
           </button>
-          <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg ${
-            timeLeft < 300 ? 'bg-red-500/20 text-red-400' : 'bg-arena-card text-white'
-          }`}>
-            <Clock className="h-4 w-4" />
-            <span className="font-mono font-bold">{formatTime(timeLeft)}</span>
-          </div>
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex flex-col relative overflow-hidden">
         <div className={`flex-1 flex flex-col lg:flex-row min-h-0 ${showLeaderboard ? 'lg:mr-80' : ''}`}>
-          <div className="lg:w-1/2 bg-arena-dark border-r border-arena-border overflow-y-auto p-4">
-            {currentProblem && (
-              <div className="prose prose-invert max-w-none">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-white m-0">
-                    Problem {currentProblemIndex + 1}: {currentProblem.title}
+          <div className="w-full lg:w-1/2 flex flex-col border-r border-arena-border overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <h2 className="text-xl font-bold text-white">
+                    Problem {currentProblemIndex + 1} / {problems.length}
                   </h2>
-                  <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${
-                    currentProblem.difficulty === 'easy' ? 'bg-green-500/20 text-green-400' :
-                    currentProblem.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                    'bg-red-500/20 text-red-400'
-                  }`}>
-                    {currentProblem.difficulty} • {currentProblem.maxScore} pts
-                  </span>
+                  {solvedProblems.has(currentProblem?._id) && (
+                    <CheckCircle className="h-5 w-5 text-green-400" />
+                  )}
                 </div>
+                <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                  currentProblem?.difficulty === 'easy' ? 'bg-green-500/20 text-green-400' :
+                  currentProblem?.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  {currentProblem?.difficulty}
+                </span>
+              </div>
 
-                <p className="text-gray-300 whitespace-pre-wrap">{currentProblem.description}</p>
+              <h3 className="text-2xl font-bold text-white mb-4">{currentProblem?.title}</h3>
 
-                {currentProblem.constraints && (
+              <div className="prose prose-invert max-w-none">
+                <p className="text-gray-300 whitespace-pre-wrap">{currentProblem?.description}</p>
+
+                {currentProblem?.constraints && (
                   <>
-                    <h3 className="text-white text-lg font-medium mt-6 mb-2">Constraints</h3>
+                    <h4 className="text-white font-semibold mt-4 mb-2">Constraints:</h4>
                     <p className="text-gray-300 whitespace-pre-wrap">{currentProblem.constraints}</p>
                   </>
                 )}
 
-                {currentProblem.sampleInput && (
+                {currentProblem?.inputFormat && (
                   <>
-                    <h3 className="text-white text-lg font-medium mt-6 mb-2">Sample Input</h3>
-                    <pre className="bg-arena-card p-3 rounded-lg text-gray-300">{currentProblem.sampleInput}</pre>
+                    <h4 className="text-white font-semibold mt-4 mb-2">Input Format:</h4>
+                    <p className="text-gray-300 whitespace-pre-wrap">{currentProblem.inputFormat}</p>
                   </>
                 )}
 
-                {currentProblem.sampleOutput && (
+                {currentProblem?.outputFormat && (
                   <>
-                    <h3 className="text-white text-lg font-medium mt-6 mb-2">Sample Output</h3>
-                    <pre className="bg-arena-card p-3 rounded-lg text-gray-300">{currentProblem.sampleOutput}</pre>
+                    <h4 className="text-white font-semibold mt-4 mb-2">Output Format:</h4>
+                    <p className="text-gray-300 whitespace-pre-wrap">{currentProblem.outputFormat}</p>
+                  </>
+                )}
+
+                {currentProblem?.sampleInput && (
+                  <>
+                    <h4 className="text-white font-semibold mt-4 mb-2">Sample Input:</h4>
+                    <pre className="bg-arena-dark p-3 rounded-lg border border-arena-border text-gray-300 overflow-x-auto">
+                      {currentProblem.sampleInput}
+                    </pre>
+                  </>
+                )}
+
+                {currentProblem?.sampleOutput && (
+                  <>
+                    <h4 className="text-white font-semibold mt-4 mb-2">Sample Output:</h4>
+                    <pre className="bg-arena-dark p-3 rounded-lg border border-arena-border text-gray-300 overflow-x-auto">
+                      {currentProblem.sampleOutput}
+                    </pre>
                   </>
                 )}
               </div>
-            )}
+            </div>
           </div>
 
-          <div className="lg:w-1/2 flex flex-col min-h-0">
-            <div className="bg-arena-dark border-b border-arena-border px-4 py-2 flex items-center justify-between">
+          <div className="w-full lg:w-1/2 flex flex-col min-h-0">
+            <div className="bg-arena-card border-b border-arena-border px-4 py-2 flex items-center justify-between">
               <select
                 value={language}
                 onChange={(e) => {
                   setLanguage(e.target.value);
-                  setCode(defaultCode[e.target.value] || '');
+                  setCode(defaultCode[e.target.value]);
                 }}
-                className="bg-arena-card border border-arena-border rounded px-2 py-1 text-white text-sm"
+                className="px-3 py-1.5 bg-arena-dark border border-arena-border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                {currentProblem?.allowedLanguages?.map((lang) => (
-                  <option key={lang} value={lang}>{lang.toUpperCase()}</option>
-                ))}
+                <option value="c">C</option>
               </select>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="inline-flex items-center px-4 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 text-sm"
+                className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
               >
-                {submitting ? <Loader2 className="animate-spin h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
-                Submit
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    <span>Submit</span>
+                  </>
+                )}
               </button>
             </div>
 
-            <div className="flex-1 min-h-[300px]">
+            <div className="flex-1 min-h-0">
               <Editor
                 height="100%"
                 language={languageMap[language]}
                 value={code}
-                onChange={setCode}
+                onChange={(value) => setCode(value || '')}
                 theme="vs-dark"
                 options={{
                   minimap: { enabled: false },
                   fontSize: 14,
-                  fontFamily: 'JetBrains Mono, monospace',
+                  lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
                 }}
@@ -326,22 +337,33 @@ const MatchArena = () => {
             </div>
 
             {result && (
-              <div className="bg-arena-dark border-t border-arena-border p-3">
-                <div className="flex items-center space-x-3">
+              <div className={`border-t border-arena-border p-4 ${
+                result.verdict === 'ACCEPTED' ? 'bg-green-500/10' : 'bg-red-500/10'
+              }`}>
+                <div className="flex items-start space-x-3">
                   {result.verdict === 'ACCEPTED' ? (
-                    <CheckCircle className="h-5 w-5 text-green-400" />
+                    <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
                   ) : (
-                    <XCircle className="h-5 w-5 text-red-400" />
+                    <XCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
                   )}
-                  <span className={result.verdict === 'ACCEPTED' ? 'text-green-400' : 'text-red-400'}>
-                    {result.verdict.replace('_', ' ')}
-                  </span>
-                  <span className="text-gray-400 text-sm">
-                    ({result.testCasesPassed}/{result.totalTestCases} passed)
-                  </span>
-                  {result.score > 0 && (
-                    <span className="text-yellow-400 text-sm">+{result.score} pts</span>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold ${
+                      result.verdict === 'ACCEPTED' ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {result.verdict.replace('_', ' ')}
+                    </p>
+                    <p className="text-sm text-gray-300 mt-1">
+                      Test Cases: {result.testCasesPassed}/{result.totalTestCases} passed
+                    </p>
+                    {result.score > 0 && (
+                      <p className="text-sm text-gray-300">
+                        Score: +{result.score} points
+                      </p>
+                    )}
+                    {result.errorMessage && (
+                      <p className="text-sm text-red-400 mt-2">{result.errorMessage}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -401,4 +423,4 @@ const MatchArena = () => {
   );
 };
 
-export default MatchArena;
+export default QuizBeeArena;

@@ -140,6 +140,24 @@ router.post('/', protect, [
             score: participant.score,
             solvedCount: participant.solvedProblems.length
           });
+
+          // Check if all participants have solved all problems
+          const allParticipantsFinished = lobby.participants.every(
+            p => p.solvedProblems.length === lobby.problems.length
+          );
+
+          if (allParticipantsFinished && lobby.status === 'ONGOING') {
+            // End the match automatically
+            lobby.status = 'FINISHED';
+            lobby.endTime = new Date();
+            await lobby.save();
+
+            io.to(`lobby-${lobbyId}`).emit('match-ended', {
+              lobbyId,
+              endTime: lobby.endTime,
+              reason: 'All participants completed all problems'
+            });
+          }
         }
       }
     }

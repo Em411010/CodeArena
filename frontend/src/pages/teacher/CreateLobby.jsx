@@ -13,6 +13,8 @@ const CreateLobby = () => {
     name: '',
     description: '',
     duration: 60,
+    matchType: 'STANDARD',
+    timePerProblem: 5,
     problems: [],
     settings: {
       maxParticipants: 100,
@@ -72,6 +74,14 @@ const CreateLobby = () => {
     if (formData.problems.length === 0) {
       toast.error('Select at least one problem');
       return;
+    }
+
+    if (formData.matchType === 'QUIZ_BEE') {
+      const totalTime = formData.timePerProblem * formData.problems.length;
+      if (totalTime > formData.duration) {
+        toast.error(`Total time for all problems (${totalTime} min) exceeds match duration (${formData.duration} min)`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -162,6 +172,42 @@ const CreateLobby = () => {
                   className="w-full px-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Match Type</label>
+                <select
+                  name="matchType"
+                  value={formData.matchType}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="STANDARD">Standard - Free Navigation</option>
+                  <option value="QUIZ_BEE">Quiz Bee - Synchronized</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formData.matchType === 'STANDARD' 
+                    ? 'Students can solve problems in any order'
+                    : 'All students see the same problem and move together'}
+                </p>
+              </div>
+              {formData.matchType === 'QUIZ_BEE' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Time Per Problem (minutes)</label>
+                  <input
+                    name="timePerProblem"
+                    type="number"
+                    value={formData.timePerProblem}
+                    onChange={handleChange}
+                    min={1}
+                    max={30}
+                    className="w-full px-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Total: {formData.timePerProblem * formData.problems.length} min of {formData.duration} min
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

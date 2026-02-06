@@ -63,6 +63,23 @@ const lobbySchema = new mongoose.Schema({
     min: [5, 'Minimum duration is 5 minutes'],
     max: [480, 'Maximum duration is 8 hours']
   },
+  matchType: {
+    type: String,
+    enum: ['STANDARD', 'QUIZ_BEE'],
+    default: 'STANDARD'
+  },
+  timePerProblem: {
+    type: Number, // in minutes, only for QUIZ_BEE mode
+    min: [1, 'Minimum time per problem is 1 minute'],
+    max: [30, 'Maximum time per problem is 30 minutes']
+  },
+  currentProblemIndex: {
+    type: Number,
+    default: 0 // For QUIZ_BEE mode to track which problem participants are on
+  },
+  problemStartTime: {
+    type: Date // When current problem started (for QUIZ_BEE mode)
+  },
   settings: {
     maxParticipants: {
       type: Number,
@@ -96,7 +113,11 @@ lobbySchema.virtual('isActive').get(function() {
 
 // Method to check if user is participant
 lobbySchema.methods.isParticipant = function(userId) {
-  return this.participants.some(p => p.user.toString() === userId.toString());
+  return this.participants.some(p => {
+    // Handle both populated (p.user is an object with _id) and unpopulated (p.user is ObjectId) cases
+    const participantUserId = p.user._id || p.user;
+    return participantUserId.toString() === userId.toString();
+  });
 };
 
 const Lobby = mongoose.model('Lobby', lobbySchema);

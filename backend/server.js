@@ -14,6 +14,8 @@ const __dirname = path.dirname(__filename);
 
 import connectDB from './config/db.js';
 import passport from './config/passport.js';
+import { startMatchScheduler } from './utils/matchScheduler.js';
+import { startQuizBeeScheduler } from './utils/quizBeeScheduler.js';
 
 // Route imports
 import authRoutes from './routes/auth.js';
@@ -136,6 +138,12 @@ const PORT = process.env.PORT || 5000;
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  // Start the match scheduler to auto-end expired matches
+  startMatchScheduler(io);
+  console.log('Match scheduler started');
+  // Start the quiz bee scheduler to handle problem transitions
+  startQuizBeeScheduler(io);
+  console.log('Quiz bee scheduler started');
 });
 
 export { io };
