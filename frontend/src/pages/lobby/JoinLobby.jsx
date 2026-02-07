@@ -23,9 +23,12 @@ const JoinLobby = () => {
       const { data } = await lobbiesAPI.join(accessCode);
       toast.success(data.message);
       
-      // Navigate based on lobby status
+      // Navigate based on lobby status and match type
       if (data.data.status === 'ONGOING') {
-        navigate(`/match/${data.data._id}`);
+        const matchPath = data.data.matchType === 'QUIZ_BEE' 
+          ? `/quiz-bee/${data.data._id}` 
+          : `/match/${data.data._id}`;
+        navigate(matchPath);
       } else {
         navigate(`/lobby/${data.data._id}`);
       }

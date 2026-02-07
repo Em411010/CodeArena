@@ -110,6 +110,7 @@ router.post('/join', protect, [
           _id: lobby._id,
           name: lobby.name,
           status: lobby.status,
+          matchType: lobby.matchType,
           teacher: lobby.teacher,
           participantCount: lobby.participants.length
         }
@@ -149,6 +150,7 @@ router.post('/join', protect, [
         _id: lobby._id,
         name: lobby.name,
         status: lobby.status,
+        matchType: lobby.matchType,
         teacher: lobby.teacher,
         participantCount: lobby.participants.length
       }
