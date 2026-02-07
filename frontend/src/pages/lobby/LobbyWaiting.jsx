@@ -42,9 +42,10 @@ const LobbyWaiting = () => {
       setLobby(data.data);
       setParticipantCount(data.data.participants?.length || 0);
       
-      // If match already started, redirect
+      // If match already started, redirect to appropriate arena
       if (data.data.status === 'ONGOING') {
-        navigate(`/match/${id}`);
+        const matchPath = data.data.matchType === 'QUIZ_BEE' ? `/quiz-bee/${id}` : `/match/${id}`;
+        navigate(matchPath);
       } else if (data.data.status === 'FINISHED') {
         toast.error('This match has already ended');
         navigate('/my-matches');
