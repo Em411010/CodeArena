@@ -35,7 +35,6 @@ const QuizBeeArena = () => {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [problemTimeLeft, setProblemTimeLeft] = useState(0);
-  const [totalTimeLeft, setTotalTimeLeft] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [solvedProblems, setSolvedProblems] = useState(new Set());
@@ -99,23 +98,6 @@ const QuizBeeArena = () => {
       socketService.removeAllListeners();
     };
   }, [id, navigate, language]);
-
-  useEffect(() => {
-    if (lobby?.endTime) {
-      const interval = setInterval(() => {
-        const now = new Date().getTime();
-        const end = new Date(lobby.endTime).getTime();
-        const diff = Math.max(0, Math.floor((end - now) / 1000));
-        setTotalTimeLeft(diff);
-
-        if (diff === 0) {
-          clearInterval(interval);
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [lobby]);
 
   useEffect(() => {
     if (lobby?.problemStartTime && lobby?.timePerProblem) {
@@ -231,16 +213,10 @@ const QuizBeeArena = () => {
           </div>
         </div>
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 bg-primary-500/20 px-3 py-1.5 rounded-lg">
+          <div className="flex items-center space-x-2 bg-primary-500/20 px-3 py-1.5 rounded-lg border border-primary-500/50">
             <Clock className="h-4 w-4 text-primary-400" />
             <span className="text-white font-mono font-medium">
-              Problem: {formatTime(problemTimeLeft)}
-            </span>
-          </div>
-          <div className="flex items-center space-x-2 bg-arena-card px-3 py-1.5 rounded-lg">
-            <Clock className="h-4 w-4 text-gray-400" />
-            <span className="text-white font-mono font-medium">
-              Total: {formatTime(totalTimeLeft)}
+              {formatTime(problemTimeLeft)}
             </span>
           </div>
           <button

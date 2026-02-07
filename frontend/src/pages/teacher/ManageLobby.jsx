@@ -19,6 +19,7 @@ const ManageLobby = () => {
     timeExpired: false,
     problemRevealed: false
   });
+  const [problemTimeLeft, setProblemTimeLeft] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -52,6 +53,25 @@ const ManageLobby = () => {
       socket.off('problem-change');
     };
   }, [id]);
+
+  // Countdown timer for current problem in Quiz Bee mode
+  useEffect(() => {
+    if (lobby?.matchType === 'QUIZ_BEE' && lobby?.status === 'ONGOING' && lobby?.problemStartTime && lobby?.timePerProblem) {
+      const interval = setInterval(() => {
+        const now = new Date().getTime();
+        const start = new Date(lobby.problemStartTime).getTime();
+        const elapsed = Math.floor((now - start) / 1000);
+        const remaining = Math.max(0, (lobby.timePerProblem * 60) - elapsed);
+        setProblemTimeLeft(remaining);
+
+        if (remaining === 0) {
+          clearInterval(interval);
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [lobby?.problemStartTime, lobby?.timePerProblem, lobby?.matchType, lobby?.status]);
 
   const fetchData = async () => {
     try {
@@ -152,6 +172,17 @@ const ManageLobby = () => {
     }
   };
 
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getCurrentProblem = () => {
+    if (!lobby?.problems || !Array.isArray(lobby.problems)) return null;
+    return lobby.problems[lobby.currentProblemIndex || 0];
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -242,12 +273,22 @@ const ManageLobby = () => {
               <div className="text-2xl font-bold text-white">
                 {(lobby.currentProblemIndex || 0) + 1} / {lobby.problems?.length || 0}
               </div>
+              <div className="text-sm text-gray-300 mt-1 truncate">
+                {getCurrentProblem()?.title || 'No problem'}
+              </div>
             </div>
 
             <div className="bg-arena-card rounded-lg p-4 border border-arena-border">
-              <div className="text-sm text-gray-400 mb-1">Time Per Problem</div>
-              <div className="text-2xl font-bold text-white">
-                {lobby.timePerProblem} min
+              <div className="text-sm text-gray-400 mb-1">Time Remaining</div>
+              <div className={`text-2xl font-bold ${
+                problemTimeLeft === 0 ? 'text-red-400' :
+                problemTimeLeft <= 60 ? 'text-yellow-400' :
+                'text-white'
+              }`}>
+                {formatTime(problemTimeLeft)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                of {lobby.timePerProblem} min per problem
               </div>
             </div>
 
