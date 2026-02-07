@@ -1,6 +1,22 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+// Automatically detect socket URL based on environment
+const getSocketUrl = () => {
+  // If explicitly set in env, use that
+  if (import.meta.env.VITE_SOCKET_URL) {
+    return import.meta.env.VITE_SOCKET_URL;
+  }
+  
+  // In production, use the same origin (for Render deployment)
+  if (import.meta.env.PROD) {
+    return window.location.origin;
+  }
+  
+  // In development, use localhost
+  return 'http://localhost:5000';
+};
+
+const SOCKET_URL = getSocketUrl();
 
 class SocketService {
   constructor() {
