@@ -274,16 +274,19 @@ router.post('/', protect, authorize('teacher', 'admin'), requireApproval, [
       }
     }
 
-    // Verify all problems exist and belong to the teacher
+    // Verify all problems exist and are accessible (own problems or shared problems)
     const validProblems = await CompetitionProblem.find({
       _id: { $in: problems },
-      createdBy: req.user.id
+      $or: [
+        { createdBy: req.user.id },
+        { isShared: true }
+      ]
     });
 
     if (validProblems.length !== problems.length) {
       return res.status(400).json({
         success: false,
-        message: 'Some problems are invalid or do not belong to you'
+        message: 'Some problems are invalid or not accessible to you'
       });
     }
 
