@@ -1,6 +1,8 @@
 import Lobby from '../models/Lobby.js';
 
-// Check for quiz bee problem transitions every 10 seconds
+// Check for quiz bee problem time tracking every 10 seconds
+// NOTE: In quiz bee mode, the host manually controls problem progression
+// This scheduler only notifies the host when time is up for a problem
 export const startQuizBeeScheduler = (io) => {
   setInterval(async () => {
     try {
@@ -19,39 +21,35 @@ export const startQuizBeeScheduler = (io) => {
 
         // Check if time for current problem has expired
         if (timeSinceStart >= timePerProblem) {
-          const nextIndex = lobby.currentProblemIndex + 1;
+          // Notify host that time is up (but don't auto-advance)
+          // Host will manually advance to next problem
+          io.to(`lobby-${lobby._id}`).emit('problem-time-expired', {
+            lobbyId: lobby._id,
+            currentProblemIndex: lobby.currentProblemIndex,
+            message: 'Time is up for current problem. Host can advance to next problem.'
+          });
 
-          // Check if there are more problems
-          if (nextIndex < lobby.problems.length) {
-            // Move to next problem
-            lobby.currentProblemIndex = nextIndex;
-            lobby.problemStartTime = now;
-            await lobby.save();
+          console.log(`Quiz Bee ${lobby._id}: Time expired for problem ${lobby.currentProblemIndex + 1}. Waiting for host to advance.`);
+          
+          // Update the problemStartTime to prevent repeated notifications
+          // Add 1 hour to the time so it won't trigger again until host advances
+          lobby.problemStartTime = new Date(now.getTime() + 60 * 60 * 1000);
+          await lobby.save();
+        }
+        
+        // Check if all problems completed (when host has advanced through all)
+        if (lobby.currentProblemIndex >= lobby.problems.length) {
+          lobby.status = 'FINISHED';
+          lobby.endTime = now;
+          await lobby.save();
 
-            // Emit socket event to all participants
-            io.to(`lobby-${lobby._id}`).emit('problem-change', {
-              lobbyId: lobby._id,
-              currentProblemIndex: nextIndex,
-              problemId: lobby.problems[nextIndex],
-              timePerProblem: lobby.timePerProblem,
-              totalProblems: lobby.problems.length
-            });
+          io.to(`lobby-${lobby._id}`).emit('match-ended', {
+            lobbyId: lobby._id,
+            endTime: now,
+            reason: 'All problems completed'
+          });
 
-            console.log(`Quiz Bee ${lobby._id}: Advanced to problem ${nextIndex + 1}/${lobby.problems.length}`);
-          } else {
-            // All problems completed, end the match
-            lobby.status = 'FINISHED';
-            lobby.endTime = now;
-            await lobby.save();
-
-            io.to(`lobby-${lobby._id}`).emit('match-ended', {
-              lobbyId: lobby._id,
-              endTime: now,
-              reason: 'All problems completed'
-            });
-
-            console.log(`Quiz Bee ${lobby._id} (${lobby.name}) automatically ended - all problems completed`);
-          }
+          console.log(`Quiz Bee ${lobby._id} (${lobby.name}) ended - all problems completed`);
         }
       }
     } catch (error) {

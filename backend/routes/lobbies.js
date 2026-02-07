@@ -586,4 +586,152 @@ router.delete('/:id', protect, authorize('teacher', 'admin'), async (req, res) =
   }
 });
 
+// @route   PUT /api/lobbies/:id/next-problem
+// @desc    Advance to next problem in Quiz Bee mode (Host control)
+// @access  Private/Teacher (owner) or Admin
+router.put('/:id/next-problem', protect, authorize('teacher', 'admin'), async (req, res) => {
+  try {
+    const lobby = await Lobby.findById(req.params.id);
+
+    if (!lobby) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lobby not found'
+      });
+    }
+
+    if (lobby.teacher.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    if (lobby.matchType !== 'QUIZ_BEE') {
+      return res.status(400).json({
+        success: false,
+        message: 'This endpoint is only for Quiz Bee matches'
+      });
+    }
+
+    if (lobby.status !== 'ONGOING') {
+      return res.status(400).json({
+        success: false,
+        message: 'Match is not ongoing'
+      });
+    }
+
+    const nextIndex = lobby.currentProblemIndex + 1;
+
+    if (nextIndex >= lobby.problems.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'No more problems available'
+      });
+    }
+
+    // Advance to next problem
+    lobby.currentProblemIndex = nextIndex;
+    lobby.problemStartTime = new Date();
+    await lobby.save();
+
+    // Get populated lobby data
+    const populatedLobby = await Lobby.findById(lobby._id).populate('problems');
+
+    // Emit socket event to all participants
+    const io = req.app.get('io');
+    io.to(`lobby-${lobby._id}`).emit('problem-change', {
+      lobbyId: lobby._id,
+      currentProblemIndex: nextIndex,
+      problemId: lobby.problems[nextIndex],
+      timePerProblem: lobby.timePerProblem,
+      totalProblems: lobby.problems.length
+    });
+
+    res.json({
+      success: true,
+      message: `Advanced to problem ${nextIndex + 1}/${lobby.problems.length}`,
+      data: {
+        currentProblemIndex: nextIndex,
+        problemStartTime: lobby.problemStartTime
+      }
+    });
+  } catch (error) {
+    console.error('Error advancing problem:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   PUT /api/lobbies/:id/reveal-problem
+// @desc    Reveal current problem to participants (Host control)
+// @access  Private/Teacher (owner) or Admin
+router.put('/:id/reveal-problem', protect, authorize('teacher', 'admin'), async (req, res) => {
+  try {
+    const lobby = await Lobby.findById(req.params.id);
+
+    if (!lobby) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lobby not found'
+      });
+    }
+
+    if (lobby.teacher.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    if (lobby.matchType !== 'QUIZ_BEE') {
+      return res.status(400).json({
+        success: false,
+        message: 'This endpoint is only for Quiz Bee matches'
+      });
+    }
+
+    if (lobby.status !== 'ONGOING') {
+      return res.status(400).json({
+        success: false,
+        message: 'Match is not ongoing'
+      });
+    }
+
+    // Start timer for current problem if not already started
+    if (!lobby.problemStartTime) {
+      lobby.problemStartTime = new Date();
+      await lobby.save();
+    }
+
+    // Emit socket event to reveal problem
+    const io = req.app.get('io');
+    io.to(`lobby-${lobby._id}`).emit('problem-revealed', {
+      lobbyId: lobby._id,
+      currentProblemIndex: lobby.currentProblemIndex,
+      problemId: lobby.problems[lobby.currentProblemIndex],
+      timePerProblem: lobby.timePerProblem,
+      totalProblems: lobby.problems.length,
+      problemStartTime: lobby.problemStartTime
+    });
+
+    res.json({
+      success: true,
+      message: 'Problem revealed to participants',
+      data: {
+        currentProblemIndex: lobby.currentProblemIndex,
+        problemStartTime: lobby.problemStartTime
+      }
+    });
+  } catch (error) {
+    console.error('Error revealing problem:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 export default router;

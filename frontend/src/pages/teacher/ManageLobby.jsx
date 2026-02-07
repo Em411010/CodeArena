@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { lobbiesAPI, submissionsAPI } from '../../services/api';
-import { ArrowLeft, Loader2, Trophy, Users, Clock, Copy, Square, Download } from 'lucide-react';
+import socketService from '../../services/socket';
+import { ArrowLeft, Loader2, Trophy, Users, Clock, Copy, Square, Download, Eye, ArrowRight, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ManageLobby = () => {
@@ -12,9 +13,44 @@ const ManageLobby = () => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('leaderboard');
+  const [quizBeeControl, setQuizBeeControl] = useState({
+    currentProblem: 0,
+    totalProblems: 0,
+    timeExpired: false,
+    problemRevealed: false
+  });
 
   useEffect(() => {
     fetchData();
+    
+    // Connect to socket for quiz bee updates
+    const socket = socketService.connect();
+    socketService.joinLobby(id);
+
+    socket.on('problem-time-expired', (data) => {
+      if (data.lobbyId === id) {
+        setQuizBeeControl(prev => ({ ...prev, timeExpired: true }));
+        toast('⏰ Time is up for current problem!', { icon: '⏰' });
+      }
+    });
+
+    socket.on('problem-change', (data) => {
+      if (data.lobbyId === id) {
+        fetchData();
+        setQuizBeeControl(prev => ({
+          ...prev,
+          currentProblem: data.currentProblemIndex,
+          timeExpired: false,
+          problemRevealed: false
+        }));
+      }
+    });
+
+    return () => {
+      socketService.leaveLobby(id);
+      socket.off('problem-time-expired');
+      socket.off('problem-change');
+    };
   }, [id]);
 
   const fetchData = async () => {
@@ -43,6 +79,32 @@ const ManageLobby = () => {
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to end match');
+    }
+  };
+
+  const handleRevealProblem = async () => {
+    try {
+      await lobbiesAPI.revealProblem(id);
+      setQuizBeeControl(prev => ({ ...prev, problemRevealed: true }));
+      toast.success('Problem revealed to participants!');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to reveal problem');
+    }
+  };
+
+  const handleNextProblem = async () => {
+    if (!window.confirm('Advance to the next problem?')) return;
+    try {
+      await lobbiesAPI.nextProblem(id);
+      setQuizBeeControl(prev => ({
+        ...prev,
+        timeExpired: false,
+        problemRevealed: false
+      }));
+      toast.success('Advanced to next problem!');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to advance problem');
     }
   };
 
@@ -153,6 +215,82 @@ const ManageLobby = () => {
           </button>
         </div>
       </div>
+
+      {/* Quiz Bee Host Controls */}
+      {lobby?.matchType === 'QUIZ_BEE' && lobby?.status === 'ONGOING' && (
+        <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                🎯 Quiz Bee Host Controls
+              </h2>
+              <p className="text-sm text-gray-400 mt-1">
+                You control when problems are shown and when to advance
+              </p>
+            </div>
+            {quizBeeControl.timeExpired && (
+              <div className="flex items-center gap-2 bg-red-500/20 px-4 py-2 rounded-lg border border-red-500/50">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+                <span className="text-red-400 font-medium">Time Expired</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-arena-card rounded-lg p-4 border border-arena-border">
+              <div className="text-sm text-gray-400 mb-1">Current Problem</div>
+              <div className="text-2xl font-bold text-white">
+                {(lobby.currentProblemIndex || 0) + 1} / {lobby.problems?.length || 0}
+              </div>
+            </div>
+
+            <div className="bg-arena-card rounded-lg p-4 border border-arena-border">
+              <div className="text-sm text-gray-400 mb-1">Time Per Problem</div>
+              <div className="text-2xl font-bold text-white">
+                {lobby.timePerProblem} min
+              </div>
+            </div>
+
+            <div className="bg-arena-card rounded-lg p-4 border border-arena-border">
+              <div className="text-sm text-gray-400 mb-1">Status</div>
+              <div className="text-lg font-semibold">
+                {quizBeeControl.problemRevealed ? (
+                  <span className="text-green-400">Problem Revealed</span>
+                ) : (
+                  <span className="text-yellow-400">Waiting to Reveal</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={handleRevealProblem}
+              disabled={quizBeeControl.problemRevealed}
+              className="flex-1 inline-flex items-center justify-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              <Eye className="h-5 w-5 mr-2" />
+              {quizBeeControl.problemRevealed ? 'Problem Revealed' : 'Reveal Problem to Participants'}
+            </button>
+            
+            <button
+              onClick={handleNextProblem}
+              disabled={(lobby.currentProblemIndex || 0) >= (lobby.problems?.length || 0) - 1}
+              className="flex-1 inline-flex items-center justify-center px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              <ArrowRight className="h-5 w-5 mr-2" />
+              {(lobby.currentProblemIndex || 0) >= (lobby.problems?.length || 0) - 1 ? 'Last Problem' : 'Next Problem'}
+            </button>
+          </div>
+
+          <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <p className="text-sm text-blue-300">
+              💡 <strong>Tip:</strong> Click "Reveal Problem" to show the current problem to participants. 
+              When ready, click "Next Problem" to advance. You have full control!
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="flex space-x-1 bg-arena-dark rounded-lg p-1">
         <button

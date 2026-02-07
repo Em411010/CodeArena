@@ -87,6 +87,8 @@ export const lobbiesAPI = {
   end: (id) => api.put(`/lobbies/${id}/end`),
   getLeaderboard: (id) => api.get(`/lobbies/${id}/leaderboard`),
   delete: (id) => api.delete(`/lobbies/${id}`),
+  nextProblem: (id) => api.put(`/lobbies/${id}/next-problem`),
+  revealProblem: (id) => api.put(`/lobbies/${id}/reveal-problem`),
 };
 
 // Submissions API

@@ -119,6 +119,17 @@ io.on('connection', (socket) => {
     console.log(`Socket ${socket.id} left lobby-${lobbyId}`);
   });
 
+  // Host controls for quiz bee mode
+  socket.on('host-next-problem', (data) => {
+    io.to(`lobby-${data.lobbyId}`).emit('problem-change', data);
+    console.log(`Host advanced to problem ${data.currentProblemIndex + 1} in lobby ${data.lobbyId}`);
+  });
+
+  socket.on('host-show-problem', (data) => {
+    io.to(`lobby-${data.lobbyId}`).emit('problem-revealed', data);
+    console.log(`Host revealed problem ${data.currentProblemIndex + 1} in lobby ${data.lobbyId}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });

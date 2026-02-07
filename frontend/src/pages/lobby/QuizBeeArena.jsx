@@ -39,6 +39,8 @@ const QuizBeeArena = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [solvedProblems, setSolvedProblems] = useState(new Set());
+  const [problemRevealed, setProblemRevealed] = useState(false);
+  const [waitingForHost, setWaitingForHost] = useState(true);
 
   useEffect(() => {
     fetchLobby();
@@ -58,19 +60,42 @@ const QuizBeeArena = () => {
       fetchLeaderboard();
     });
 
-    // Listen for problem changes
+    // Listen for problem changes (host advancing to next problem)
     socket.on('problem-change', (data) => {
       if (data.lobbyId === id) {
         setCurrentProblemIndex(data.currentProblemIndex);
         setResult(null);
-        toast.info(`Moving to Problem ${data.currentProblemIndex + 1}/${data.totalProblems}`);
+        setProblemRevealed(false);
+        setWaitingForHost(true);
+        toast.info(`Host moved to Problem ${data.currentProblemIndex + 1}/${data.totalProblems}`);
         // Reset code for new problem
         setCode(defaultCode[language]);
+        fetchLobby();
+      }
+    });
+
+    // Listen for problem revealed (host showing problem)
+    socket.on('problem-revealed', (data) => {
+      if (data.lobbyId === id) {
+        setProblemRevealed(true);
+        setWaitingForHost(false);
+        toast.success('Problem revealed by host! Start solving! 🚀');
+        fetchLobby();
+      }
+    });
+
+    // Listen for time expired notification
+    socket.on('problem-time-expired', (data) => {
+      if (data.lobbyId === id) {
+        toast('⏰ Time is up! Waiting for host...', { icon: '⏰' });
       }
     });
 
     return () => {
       socketService.leaveLobby(id);
+      socket.off('problem-change');
+      socket.off('problem-revealed');
+      socket.off('problem-time-expired');
       socketService.removeAllListeners();
     };
   }, [id, navigate, language]);
@@ -118,6 +143,15 @@ const QuizBeeArena = () => {
       await data.data.populate('problems');
       setProblems(data.data.problems);
       setCurrentProblemIndex(data.data.currentProblemIndex || 0);
+      
+      // Check if problem has been revealed by host
+      if (data.data.problemStartTime) {
+        setProblemRevealed(true);
+        setWaitingForHost(false);
+      } else {
+        setProblemRevealed(false);
+        setWaitingForHost(true);
+      }
       
       fetchLeaderboard();
     } catch (error) {
@@ -221,6 +255,33 @@ const QuizBeeArena = () => {
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <div className={`flex-1 flex flex-col lg:flex-row min-h-0 ${showLeaderboard ? 'lg:mr-80' : ''}`}>
+          {/* Waiting for Host Overlay */}
+          {waitingForHost && !problemRevealed && (
+            <div className="absolute inset-0 bg-arena-bg/95 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="text-center max-w-md px-6">
+                <div className="mb-6">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-500/20 rounded-full mb-4">
+                    <Clock className="h-10 w-10 text-yellow-400 animate-pulse" />
+                  </div>
+                </div>
+                <h2 className="text-3xl font-bold text-white mb-3">
+                  Waiting for Host
+                </h2>
+                <p className="text-lg text-gray-300 mb-2">
+                  The host will reveal Problem {currentProblemIndex + 1} when ready
+                </p>
+                <p className="text-sm text-gray-400">
+                  In Quiz Bee mode, the host controls when each problem is shown
+                </p>
+                <div className="mt-8 flex items-center justify-center space-x-2">
+                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="w-full lg:w-1/2 flex flex-col border-r border-arena-border overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -302,13 +363,18 @@ const QuizBeeArena = () => {
               </select>
               <button
                 onClick={handleSubmit}
-                disabled={submitting}
-                className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                disabled={submitting || waitingForHost || !problemRevealed}
+                className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>Submitting...</span>
+                  </>
+                ) : waitingForHost || !problemRevealed ? (
+                  <>
+                    <Clock className="h-4 w-4" />
+                    <span>Waiting...</span>
                   </>
                 ) : (
                   <>
