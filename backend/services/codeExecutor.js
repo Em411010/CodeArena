@@ -196,18 +196,31 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
       }
 
     } catch (error) {
+      const statusCode = error?.response?.status;
+      const isApiError = statusCode === 401 || statusCode === 403 || statusCode === 429 || (statusCode >= 500);
+      const errMsg = isApiError
+        ? `Code execution service unavailable (HTTP ${statusCode}). Please try again later.`
+        : 'Failed to execute test case';
+
       console.error(`Error executing test case ${i + 1}:`, error.message);
       results.testCaseResults.push({
         testCaseIndex: i + 1,
-        verdict: 'SYSTEM_ERROR',
+        verdict: 'RUNTIME_ERROR',
         isHidden: testCase.isHidden
       });
       allPassed = false;
       if (!firstError) {
         firstError = {
-          verdict: 'SYSTEM_ERROR',
-          message: 'Failed to execute test case'
+          verdict: 'RUNTIME_ERROR',
+          message: errMsg
         };
+      }
+
+      // If the execution API itself is failing (not a user code error), stop immediately
+      if (isApiError) {
+        results.verdict = 'RUNTIME_ERROR';
+        results.errorMessage = errMsg;
+        break;
       }
     }
 
