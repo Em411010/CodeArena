@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { lobbiesAPI } from '../../services/api';
-import { Users, Plus, Loader2, Play, Square, Trash2, Copy, Eye } from 'lucide-react';
+import { Users, Plus, Loader2, Square, Trash2, Copy, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const TeacherLobbies = () => {
@@ -20,16 +20,6 @@ const TeacherLobbies = () => {
       toast.error('Failed to load lobbies');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleStart = async (id) => {
-    try {
-      await lobbiesAPI.start(id);
-      toast.success('Match started!');
-      fetchLobbies();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to start match');
     }
   };
 
@@ -146,13 +136,13 @@ const TeacherLobbies = () => {
                 <div className="flex items-center space-x-2">
                   {lobby.status === 'WAITING' && (
                     <>
-                      <button
-                        onClick={() => handleStart(lobby._id)}
-                        className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                      <Link
+                        to={`/teacher/lobbies/${lobby._id}`}
+                        className="inline-flex items-center px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
                       >
-                        <Play className="h-4 w-4 mr-1" />
-                        Start
-                      </button>
+                        <Users className="h-4 w-4 mr-1" />
+                        Waiting Room
+                      </Link>
                       <button
                         onClick={() => handleDelete(lobby._id)}
                         className="p-2 text-gray-400 hover:text-red-400 transition-colors"
