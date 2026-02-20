@@ -1,77 +1,67 @@
 import axios from 'axios';
 
-const PISTON_API_URL = 'https://emkc.org/api/v2/piston/execute';
+// Judge0 CE — free public API, no auth required
+// Can be overridden via env var to use a self-hosted or RapidAPI instance
+const JUDGE0_API_URL = process.env.JUDGE0_API_URL || 'https://ce.judge0.com';
 
-// Language configurations for Piston
+// Judge0 language IDs
 const languageConfig = {
-  c: {
-    language: 'c',
-    version: '10.2.0',
-    filename: 'main.c'
-  },
-  cpp: {
-    language: 'cpp',
-    version: '10.2.0',
-    filename: 'main.cpp'
-  },
-  python: {
-    language: 'python',
-    version: '3.10.0',
-    filename: 'main.py'
-  },
-  javascript: {
-    language: 'javascript',
-    version: '18.15.0',
-    filename: 'main.js'
-  },
-  java: {
-    language: 'java',
-    version: '15.0.2',
-    filename: 'Main.java'
-  }
+  c:          50,  // C (GCC 9.2.0)
+  cpp:        54,  // C++ (GCC 9.2.0)
+  python:     71,  // Python (3.8.1)
+  javascript: 63,  // JavaScript (Node.js 12.14.0)
+  java:       62,  // Java (OpenJDK 13.0.1)
+};
+
+// Judge0 status IDs
+const JUDGE0_STATUS = {
+  1: 'PENDING',               // In Queue
+  2: 'PENDING',               // Processing
+  3: 'ACCEPTED',              // Accepted (output match checked separately)
+  4: 'WRONG_ANSWER',          // Wrong Answer
+  5: 'TIME_LIMIT_EXCEEDED',
+  6: 'COMPILATION_ERROR',
+  7: 'RUNTIME_ERROR',         // SIGSEGV
+  8: 'RUNTIME_ERROR',         // SIGXFSZ
+  9: 'RUNTIME_ERROR',         // SIGFPE
+  10: 'RUNTIME_ERROR',        // SIGABRT
+  11: 'RUNTIME_ERROR',        // NZEC
+  12: 'RUNTIME_ERROR',        // Other
+  13: 'RUNTIME_ERROR',        // Internal Error
+  14: 'RUNTIME_ERROR',        // Exec Format Error
 };
 
 /**
- * Execute code against a single test case using Piston API
+ * Execute code against a single test case using Judge0 CE API
  */
 const executeTestCase = async (code, language, input, timeLimit = 3000) => {
-  const config = languageConfig[language];
-  
-  if (!config) {
+  const languageId = languageConfig[language];
+
+  if (!languageId) {
     throw new Error(`Unsupported language: ${language}`);
   }
 
   try {
-    const response = await axios.post(PISTON_API_URL, {
-      language: config.language,
-      version: config.version,
-      files: [
-        {
-          name: config.filename,
-          content: code
-        }
-      ],
-      stdin: input || '',
-      compile_timeout: 10000,
-      run_timeout: timeLimit,
-      compile_memory_limit: -1,
-      run_memory_limit: -1
-    }, {
-      timeout: 30000 // 30 second axios timeout
-    });
+    const response = await axios.post(
+      `${JUDGE0_API_URL}/submissions?base64_encoded=false&wait=true`,
+      {
+        source_code: code,
+        language_id: languageId,
+        stdin: input || '',
+        cpu_time_limit: Math.max(1, timeLimit / 1000),  // seconds
+        memory_limit: 262144,                            // 256 MB in KB
+      },
+      {
+        timeout: 30000,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
 
     return response.data;
   } catch (error) {
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      return {
-        compile: { code: 0, stderr: '', stdout: '' },
-        run: { 
-          code: -1, 
-          signal: 'SIGKILL', 
-          stderr: 'Execution timed out', 
-          stdout: '' 
-        }
-      };
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      // Simulate a TLE result so the verdict flow still works
+      return { status: { id: 5, description: 'Time Limit Exceeded' } };
     }
     throw error;
   }
@@ -83,57 +73,50 @@ const executeTestCase = async (code, language, input, timeLimit = 3000) => {
 const normalizeOutput = (output) => {
   if (!output) return '';
   return output
-    .replace(/\r\n/g, '\n')  // Normalize Windows line endings
-    .replace(/\r/g, '\n')     // Normalize old Mac line endings
-    .trim();                   // Remove leading/trailing whitespace
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
 };
 
 /**
- * Determine verdict based on Piston response
+ * Determine verdict based on Judge0 response
  */
-const getVerdict = (pistonResult, expectedOutput) => {
-  const { compile, run } = pistonResult;
+const getVerdict = (judge0Result, expectedOutput) => {
+  const statusId = judge0Result?.status?.id;
 
-  // Check for compilation error
-  if (compile && compile.code !== 0) {
+  if (statusId === 6) {
     return {
       verdict: 'COMPILATION_ERROR',
-      error: compile.stderr || compile.stdout || 'Compilation failed'
+      error: judge0Result.compile_output || judge0Result.stderr || 'Compilation failed',
     };
   }
 
-  // Check for timeout (SIGKILL usually means timeout)
-  if (run.signal === 'SIGKILL') {
-    return {
-      verdict: 'TIME_LIMIT_EXCEEDED',
-      error: 'Program execution timed out'
-    };
+  if (statusId === 5) {
+    return { verdict: 'TIME_LIMIT_EXCEEDED', error: 'Time limit exceeded' };
   }
 
-  // Check for runtime error
-  if (run.code !== 0 && run.code !== null) {
+  if (statusId >= 7 && statusId <= 14) {
     return {
       verdict: 'RUNTIME_ERROR',
-      error: run.stderr || `Program exited with code ${run.code}`
+      error: judge0Result.stderr || `Runtime error (status ${statusId})`,
     };
   }
 
-  // Compare output
-  const actualOutput = normalizeOutput(run.stdout);
-  const expected = normalizeOutput(expectedOutput);
+  if (statusId === 3 || statusId === 4) {
+    const actualOutput = normalizeOutput(judge0Result.stdout);
+    const expected = normalizeOutput(expectedOutput);
 
-  if (actualOutput === expected) {
-    return {
-      verdict: 'PASSED',
-      output: actualOutput
-    };
-  } else {
-    return {
-      verdict: 'WRONG_ANSWER',
-      output: actualOutput,
-      expected: expected
-    };
+    if (actualOutput === expected) {
+      return { verdict: 'PASSED', output: actualOutput };
+    } else {
+      return { verdict: 'WRONG_ANSWER', output: actualOutput, expected };
+    }
   }
+
+  return {
+    verdict: 'RUNTIME_ERROR',
+    error: `Unexpected status from execution service: ${statusId}`,
+  };
 };
 
 /**
@@ -158,8 +141,8 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
     const testCase = testCases[i];
     
     try {
-      const pistonResult = await executeTestCase(code, language, testCase.input, timeLimit);
-      const testVerdict = getVerdict(pistonResult, testCase.expectedOutput);
+      const judge0Result = await executeTestCase(code, language, testCase.input, timeLimit);
+      const testVerdict = getVerdict(judge0Result, testCase.expectedOutput);
 
       const testResult = {
         testCaseIndex: i + 1,
@@ -224,9 +207,9 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
       }
     }
 
-    // Small delay between test cases to avoid rate limiting
+    // Delay between test cases to respect Judge0 rate limits
     if (i < testCases.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
 
@@ -248,14 +231,14 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
 };
 
 /**
- * Get available Piston runtimes (for debugging/info)
+ * Get available Judge0 languages (for debugging/info)
  */
 export const getAvailableRuntimes = async () => {
   try {
-    const response = await axios.get('https://emkc.org/api/v2/piston/runtimes');
+    const response = await axios.get(`${JUDGE0_API_URL}/languages`);
     return response.data;
   } catch (error) {
-    console.error('Failed to fetch runtimes:', error.message);
+    console.error('Failed to fetch languages:', error.message);
     return [];
   }
 };
