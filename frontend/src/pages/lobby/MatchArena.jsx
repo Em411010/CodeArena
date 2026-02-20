@@ -97,6 +97,12 @@ const MatchArena = () => {
         return;
       }
 
+      // Redirect to Quiz Bee arena if this is a Quiz Bee match
+      if (data.data.matchType === 'QUIZ_BEE') {
+        navigate(`/quiz-bee/${id}`, { replace: true });
+        return;
+      }
+
       setLobby(data.data);
       setProblems(data.data.problems || []);
       

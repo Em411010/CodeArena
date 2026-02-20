@@ -97,7 +97,7 @@ const getVerdict = (pistonResult, expectedOutput) => {
   // Check for compilation error
   if (compile && compile.code !== 0) {
     return {
-      verdict: 'COMPILE_ERROR',
+      verdict: 'COMPILATION_ERROR',
       error: compile.stderr || compile.stdout || 'Compilation failed'
     };
   }
@@ -189,8 +189,8 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
       results.testCaseResults.push(testResult);
 
       // Stop on first compile error (no point continuing)
-      if (testVerdict.verdict === 'COMPILE_ERROR') {
-        results.verdict = 'COMPILE_ERROR';
+      if (testVerdict.verdict === 'COMPILATION_ERROR') {
+        results.verdict = 'COMPILATION_ERROR';
         results.errorMessage = testVerdict.error;
         break;
       }
@@ -220,7 +220,7 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
   results.executionTime = Date.now() - startTime;
 
   // Determine final verdict
-  if (results.verdict !== 'COMPILE_ERROR') {
+  if (results.verdict !== 'COMPILATION_ERROR') {
     if (allPassed) {
       results.verdict = 'ACCEPTED';
     } else if (firstError) {

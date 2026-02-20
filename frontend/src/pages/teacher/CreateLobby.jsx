@@ -39,17 +39,30 @@ const CreateLobby = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const { name, value, type } = e.target;
+    // Convert numeric fields to numbers
+    const numericFields = ['duration', 'timePerProblem'];
+    const finalValue = type === 'number' || numericFields.includes(name) 
+      ? (value === '' ? '' : Number(value)) 
+      : value;
+    setFormData({ ...formData, [name]: finalValue });
   };
 
   const handleSettingChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let finalValue;
+    if (type === 'checkbox') {
+      finalValue = checked;
+    } else if (type === 'number') {
+      finalValue = value === '' ? '' : Number(value);
+    } else {
+      finalValue = value;
+    }
     setFormData({
       ...formData,
       settings: {
         ...formData.settings,
-        [name]: type === 'checkbox' ? checked : value,
+        [name]: finalValue,
       },
     });
   };
@@ -76,18 +89,16 @@ const CreateLobby = () => {
       return;
     }
 
+    // Auto-calculate duration for Quiz Bee mode
+    const submissionData = { ...formData };
     if (formData.matchType === 'QUIZ_BEE') {
-      const totalTime = formData.timePerProblem * formData.problems.length;
-      if (totalTime > formData.duration) {
-        toast.error(`Total time for all problems (${totalTime} min) exceeds match duration (${formData.duration} min)`);
-        return;
-      }
+      submissionData.duration = formData.timePerProblem * formData.problems.length;
     }
 
     setLoading(true);
 
     try {
-      const { data } = await lobbiesAPI.create(formData);
+      const { data } = await lobbiesAPI.create(submissionData);
       toast.success(`Lobby created! Access code: ${data.data.accessCode}`);
       navigate('/teacher/lobbies');
     } catch (error) {
@@ -148,18 +159,20 @@ const CreateLobby = () => {
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Duration (minutes)</label>
-                <input
-                  name="duration"
-                  type="number"
-                  value={formData.duration}
-                  onChange={handleChange}
-                  min={5}
-                  max={480}
-                  className="w-full px-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
+              {formData.matchType === 'STANDARD' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Duration (minutes)</label>
+                  <input
+                    name="duration"
+                    type="number"
+                    value={formData.duration}
+                    onChange={handleChange}
+                    min={5}
+                    max={480}
+                    className="w-full px-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Max Participants</label>
                 <input
@@ -204,7 +217,7 @@ const CreateLobby = () => {
                     className="w-full px-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Total: {formData.timePerProblem * formData.problems.length} min of {formData.duration} min
+                    Total duration: {formData.timePerProblem * formData.problems.length} minutes
                   </p>
                 </div>
               )}
