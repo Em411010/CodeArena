@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { lobbiesAPI, submissionsAPI } from '../../services/api';
 import socketService from '../../services/socket';
-import { ArrowLeft, Loader2, Trophy, Users, Clock, Copy, Square, Download, Eye, ArrowRight, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Trophy, Users, Clock, Copy, Square, Download, Eye, ArrowRight, AlertCircle, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ManageLobby = () => {
@@ -65,6 +65,13 @@ const ManageLobby = () => {
       }
     });
 
+    socket.on('participant-joined', (data) => {
+      if (data.lobbyId === id) {
+        // Refresh lobby to get updated participants list
+        fetchData(true);
+      }
+    });
+
     socket.on('problem-time-expired', (data) => {
       if (data.lobbyId === id) {
         stopCountdown();
@@ -109,6 +116,7 @@ const ManageLobby = () => {
       stopCountdown();
       socketService.leaveLobby(id);
       socket.off('leaderboard-update');
+      socket.off('participant-joined');
       socket.off('problem-time-expired');
       socket.off('problem-change');
       socket.off('problem-revealed');
@@ -197,6 +205,17 @@ const ManageLobby = () => {
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to end match');
+    }
+  };
+
+  const handleStart = async () => {
+    if (!window.confirm('Start the match? Participants will be notified.')) return;
+    try {
+      await lobbiesAPI.start(id);
+      toast.success('Match started!');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to start match');
     }
   };
 
@@ -340,6 +359,76 @@ const ManageLobby = () => {
           </button>
         </div>
       </div>
+
+      {/* Waiting Room — shown while lobby is in WAITING status */}
+      {lobby?.status === 'WAITING' && (
+        <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-primary-500/10 to-primary-600/10 border-b border-arena-border px-6 py-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary-400" />
+                Waiting Room
+              </h2>
+              <p className="text-sm text-gray-400 mt-1">Share the access code — start when everyone has joined</p>
+            </div>
+            <button
+              onClick={handleStart}
+              className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-base"
+            >
+              <Play className="h-5 w-5 mr-2" />
+              Start Match
+            </button>
+          </div>
+
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Access code */}
+            <div className="bg-arena-dark rounded-xl p-5 flex flex-col items-center justify-center border border-arena-border">
+              <p className="text-sm text-gray-400 mb-2">Share this code with participants</p>
+              <div className="flex items-center gap-3">
+                <span className="text-4xl font-mono font-bold tracking-widest text-primary-400">
+                  {lobby.accessCode}
+                </span>
+                <button
+                  onClick={copyAccessCode}
+                  className="p-2 text-gray-400 hover:text-primary-400 transition-colors"
+                  title="Copy access code"
+                >
+                  <Copy className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">{lobby.matchType === 'QUIZ_BEE' ? 'Quiz Bee' : 'Standard'} · {lobby.problems?.length || 0} problems · {lobby.duration} min</p>
+            </div>
+
+            {/* Participants list */}
+            <div className="bg-arena-dark rounded-xl p-5 border border-arena-border">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-300">Participants</p>
+                <span className="bg-primary-500/20 text-primary-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                  {lobby.participants?.length || 0} joined
+                </span>
+              </div>
+              {!lobby.participants?.length ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <Users className="h-8 w-8 text-gray-600 mb-2" />
+                  <p className="text-gray-500 text-sm">No participants yet</p>
+                  <p className="text-gray-600 text-xs mt-1">Waiting for students to join...</p>
+                </div>
+              ) : (
+                <ul className="space-y-2 max-h-48 overflow-y-auto">
+                  {lobby.participants.map((p, idx) => (
+                    <li key={p.user?._id || idx} className="flex items-center gap-2 text-sm">
+                      <span className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span className="text-white">{p.user?.username || 'Unknown'}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quiz Bee Host Controls */}
       {lobby?.matchType === 'QUIZ_BEE' && lobby?.status === 'ONGOING' && (

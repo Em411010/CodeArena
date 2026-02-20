@@ -100,7 +100,7 @@ const CreateLobby = () => {
     try {
       const { data } = await lobbiesAPI.create(submissionData);
       toast.success(`Lobby created! Access code: ${data.data.accessCode}`);
-      navigate('/teacher/lobbies');
+      navigate(`/teacher/lobbies/${data.data._id}`);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create lobby');
     } finally {

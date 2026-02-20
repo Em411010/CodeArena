@@ -140,6 +140,9 @@ router.post('/join', protect, [
     // Emit socket event
     const io = req.app.get('io');
     io.to(`lobby-${lobby._id}`).emit('participant-joined', {
+      lobbyId: lobby._id.toString(),
+      userId: req.user.id,
+      username: req.user.username,
       participantCount: lobby.participants.length
     });
 
