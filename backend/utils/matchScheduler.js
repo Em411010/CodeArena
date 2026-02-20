@@ -19,7 +19,7 @@ export const startMatchScheduler = (io) => {
 
         // Emit socket event to all participants
         io.to(`lobby-${lobby._id}`).emit('match-ended', {
-          lobbyId: lobby._id,
+          lobbyId: lobby._id.toString(),
           endTime: lobby.endTime,
           reason: 'Time limit reached'
         });

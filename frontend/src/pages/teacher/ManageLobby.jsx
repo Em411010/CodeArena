@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { lobbiesAPI, submissionsAPI } from '../../services/api';
 import socketService from '../../services/socket';
@@ -21,73 +21,171 @@ const ManageLobby = () => {
   });
   const [problemTimeLeft, setProblemTimeLeft] = useState(0);
 
+  // Simple countdown timer ref
+  const timerRef = useRef(null);
+
+  const startCountdown = (seconds) => {
+    // Clear any existing timer
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    let remaining = seconds;
+    setProblemTimeLeft(remaining);
+    
+    timerRef.current = setInterval(() => {
+      remaining -= 1;
+      setProblemTimeLeft(remaining);
+      
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        setProblemTimeLeft(0);
+        setQuizBeeControl(prev => ({ ...prev, timeExpired: true, problemRevealed: false }));
+        toast('⏰ Time is up for current problem!', { icon: '⏰' });
+      }
+    }, 1000);
+  };
+
+  const stopCountdown = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
   useEffect(() => {
     fetchData();
     
-    // Connect to socket for quiz bee updates
     const socket = socketService.connect();
     socketService.joinLobby(id);
 
+    // Real-time leaderboard & submissions refresh
+    socket.on('leaderboard-update', (data) => {
+      if (data.lobbyId === id) {
+        fetchLeaderboardAndSubmissions();
+      }
+    });
+
     socket.on('problem-time-expired', (data) => {
       if (data.lobbyId === id) {
-        setQuizBeeControl(prev => ({ ...prev, timeExpired: true }));
+        stopCountdown();
+        setProblemTimeLeft(0);
+        setQuizBeeControl(prev => ({ ...prev, timeExpired: true, problemRevealed: false }));
         toast('⏰ Time is up for current problem!', { icon: '⏰' });
       }
     });
 
     socket.on('problem-change', (data) => {
       if (data.lobbyId === id) {
-        fetchData();
+        stopCountdown();
+        console.log('[ManageLobby] problem-change timePerProblem:', data.timePerProblem);
+        // Show full time for the next problem (timer not started yet)
+        setProblemTimeLeft(data.timePerProblem ? data.timePerProblem * 60 : 0);
         setQuizBeeControl(prev => ({
           ...prev,
           currentProblem: data.currentProblemIndex,
+          totalProblems: data.totalProblems,
           timeExpired: false,
           problemRevealed: false
         }));
+        // Use skipTimer=true so fetchData doesn't override socket-managed timer state
+        fetchData(true);
+      }
+    });
+
+    socket.on('problem-revealed', (data) => {
+      if (data.lobbyId === id) {
+        console.log('[ManageLobby] problem-revealed timePerProblem:', data.timePerProblem);
+        setQuizBeeControl(prev => ({ ...prev, problemRevealed: true, timeExpired: false }));
+        // Start the countdown from timePerProblem
+        if (data.timePerProblem) {
+          startCountdown(data.timePerProblem * 60);
+        }
+        // Use skipTimer=true so fetchData doesn't restart/override the countdown
+        fetchData(true);
       }
     });
 
     return () => {
+      stopCountdown();
       socketService.leaveLobby(id);
+      socket.off('leaderboard-update');
       socket.off('problem-time-expired');
       socket.off('problem-change');
+      socket.off('problem-revealed');
     };
   }, [id]);
 
-  // Countdown timer for current problem in Quiz Bee mode
-  useEffect(() => {
-    if (lobby?.matchType === 'QUIZ_BEE' && lobby?.status === 'ONGOING' && lobby?.problemStartTime && lobby?.timePerProblem) {
-      const interval = setInterval(() => {
-        const now = new Date().getTime();
-        const start = new Date(lobby.problemStartTime).getTime();
-        const elapsed = Math.floor((now - start) / 1000);
-        const remaining = Math.max(0, (lobby.timePerProblem * 60) - elapsed);
-        setProblemTimeLeft(remaining);
-
-        if (remaining === 0) {
-          clearInterval(interval);
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [lobby?.problemStartTime, lobby?.timePerProblem, lobby?.matchType, lobby?.status]);
-
-  const fetchData = async () => {
+  // skipTimer: when true, only refresh data without touching timer/reveal state
+  // This prevents race conditions when called from socket handlers
+  const fetchData = async (skipTimer = false) => {
     try {
       const [lobbyRes, leaderboardRes, submissionsRes] = await Promise.all([
         lobbiesAPI.getById(id),
         lobbiesAPI.getLeaderboard(id),
         submissionsAPI.getByLobby(id),
       ]);
-      setLobby(lobbyRes.data.data);
+      const lobbyData = lobbyRes.data.data;
+      setLobby(lobbyData);
       setLeaderboard(leaderboardRes.data.data);
       setSubmissions(submissionsRes.data.data);
+      
+      console.log('[ManageLobby] fetchData lobby.timePerProblem:', lobbyData.timePerProblem, 'skipTimer:', skipTimer);
+      
+      if (lobbyData.matchType === 'QUIZ_BEE') {
+        if (skipTimer) {
+          // Only update metadata — timer state is managed by socket events
+          setQuizBeeControl(prev => ({
+            ...prev,
+            currentProblem: lobbyData.currentProblemIndex || 0,
+            totalProblems: lobbyData.problems?.length || 0,
+          }));
+        } else {
+          // Full initialization (initial page load / refresh)
+          const isRevealed = !!lobbyData.problemStartTime;
+          setQuizBeeControl(prev => ({
+            ...prev,
+            currentProblem: lobbyData.currentProblemIndex || 0,
+            totalProblems: lobbyData.problems?.length || 0,
+            problemRevealed: isRevealed,
+            timeExpired: false
+          }));
+          
+          if (isRevealed && lobbyData.timePerProblem && lobbyData.problemStartTime) {
+            const elapsed = Math.floor((Date.now() - new Date(lobbyData.problemStartTime).getTime()) / 1000);
+            const totalSec = lobbyData.timePerProblem * 60;
+            // Clamp remaining to [0, totalSec] — prevents bug if problemStartTime is somehow in the future
+            const remaining = Math.min(totalSec, Math.max(0, totalSec - elapsed));
+            console.log('[ManageLobby] Timer calc: elapsed=', elapsed, 'totalSec=', totalSec, 'remaining=', remaining);
+            if (remaining > 0) {
+              startCountdown(remaining);
+            } else {
+              setProblemTimeLeft(0);
+              setQuizBeeControl(prev => ({ ...prev, timeExpired: true, problemRevealed: false }));
+            }
+          } else {
+            setProblemTimeLeft(lobbyData.timePerProblem ? lobbyData.timePerProblem * 60 : 0);
+          }
+        }
+      }
     } catch (error) {
       toast.error('Failed to load lobby data');
       navigate('/teacher/lobbies');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Lightweight refresh for leaderboard + submissions only (called on socket events)
+  const fetchLeaderboardAndSubmissions = async () => {
+    try {
+      const [leaderboardRes, submissionsRes] = await Promise.all([
+        lobbiesAPI.getLeaderboard(id),
+        submissionsAPI.getByLobby(id),
+      ]);
+      setLeaderboard(leaderboardRes.data.data);
+      setSubmissions(submissionsRes.data.data);
+    } catch (error) {
+      console.error('Failed to refresh leaderboard:', error);
     }
   };
 
@@ -116,13 +214,9 @@ const ManageLobby = () => {
     if (!window.confirm('Advance to the next problem?')) return;
     try {
       await lobbiesAPI.nextProblem(id);
-      setQuizBeeControl(prev => ({
-        ...prev,
-        timeExpired: false,
-        problemRevealed: false
-      }));
+      // State will be updated by the problem-change socket event
+      // No need to call fetchData here — the socket handler handles it
       toast.success('Advanced to next problem!');
-      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to advance problem');
     }
@@ -280,22 +374,37 @@ const ManageLobby = () => {
 
             <div className="bg-arena-card rounded-lg p-4 border border-arena-border">
               <div className="text-sm text-gray-400 mb-1">Time Remaining</div>
-              <div className={`text-2xl font-bold ${
-                problemTimeLeft === 0 ? 'text-red-400' :
-                problemTimeLeft <= 60 ? 'text-yellow-400' :
-                'text-white'
-              }`}>
-                {formatTime(problemTimeLeft)}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">
-                of {lobby.timePerProblem} min per problem
-              </div>
+              {quizBeeControl.problemRevealed ? (
+                <>
+                  <div className={`text-2xl font-bold ${
+                    problemTimeLeft === 0 ? 'text-red-400' :
+                    problemTimeLeft <= 60 ? 'text-yellow-400' :
+                    'text-white'
+                  }`}>
+                    {formatTime(problemTimeLeft)}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {problemTimeLeft === 0 ? 'Time expired!' : `of ${lobby.timePerProblem} min per problem`}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-gray-500">
+                    {formatTime(lobby.timePerProblem * 60)}
+                  </div>
+                  <div className="text-xs text-yellow-400 mt-1">
+                    ⏸️ Timer starts when revealed
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="bg-arena-card rounded-lg p-4 border border-arena-border">
               <div className="text-sm text-gray-400 mb-1">Status</div>
               <div className="text-lg font-semibold">
-                {quizBeeControl.problemRevealed ? (
+                {quizBeeControl.timeExpired ? (
+                  <span className="text-red-400">⏰ Time Expired</span>
+                ) : quizBeeControl.problemRevealed ? (
                   <span className="text-green-400">Problem Revealed</span>
                 ) : (
                   <span className="text-yellow-400">Waiting to Reveal</span>
@@ -330,6 +439,65 @@ const ManageLobby = () => {
               When ready, click "Next Problem" to advance. You have full control!
             </p>
           </div>
+
+          {/* Current Problem Preview for Teacher */}
+          {getCurrentProblem() && (
+            <div className="mt-4 bg-arena-card rounded-lg border border-arena-border overflow-hidden">
+              <div className="bg-arena-dark px-4 py-3 border-b border-arena-border flex items-center justify-between">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  📋 Current Problem Preview
+                  <span className={`text-xs px-2 py-0.5 rounded ${getCurrentProblem().difficulty === 'easy' ? 'bg-green-500/20 text-green-400' : getCurrentProblem().difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {getCurrentProblem().difficulty}
+                  </span>
+                </h3>
+              </div>
+              <div className="p-6 max-h-[32rem] overflow-y-auto">
+                <h4 className="text-xl font-bold text-white mb-4">{getCurrentProblem().title}</h4>
+
+                <div className="prose prose-invert max-w-none">
+                  <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{getCurrentProblem().description}</p>
+
+                  {getCurrentProblem().constraints && (
+                    <div className="mt-4">
+                      <h5 className="text-white font-semibold mb-2">Constraints:</h5>
+                      <p className="text-gray-300 whitespace-pre-wrap text-sm">{getCurrentProblem().constraints}</p>
+                    </div>
+                  )}
+
+                  {getCurrentProblem().inputFormat && (
+                    <div className="mt-4">
+                      <h5 className="text-white font-semibold mb-2">Input Format:</h5>
+                      <p className="text-gray-300 whitespace-pre-wrap text-sm">{getCurrentProblem().inputFormat}</p>
+                    </div>
+                  )}
+
+                  {getCurrentProblem().outputFormat && (
+                    <div className="mt-4">
+                      <h5 className="text-white font-semibold mb-2">Output Format:</h5>
+                      <p className="text-gray-300 whitespace-pre-wrap text-sm">{getCurrentProblem().outputFormat}</p>
+                    </div>
+                  )}
+
+                  {(getCurrentProblem().sampleInput || getCurrentProblem().sampleOutput) && (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {getCurrentProblem().sampleInput && (
+                        <div>
+                          <h5 className="text-white font-semibold mb-2">Sample Input:</h5>
+                          <pre className="bg-arena-dark p-3 rounded-lg border border-arena-border text-sm text-green-400 overflow-x-auto">{getCurrentProblem().sampleInput}</pre>
+                        </div>
+                      )}
+                      {getCurrentProblem().sampleOutput && (
+                        <div>
+                          <h5 className="text-white font-semibold mb-2">Sample Output:</h5>
+                          <pre className="bg-arena-dark p-3 rounded-lg border border-arena-border text-sm text-green-400 overflow-x-auto">{getCurrentProblem().sampleOutput}</pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

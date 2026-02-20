@@ -219,7 +219,7 @@ router.get('/:id', protect, async (req, res) => {
       // Hide access code from students
       delete responseData.accessCode;
     } else {
-      await lobby.populate('problems', 'title difficulty maxScore');
+      await lobby.populate('problems', 'title difficulty description allowedLanguages constraints inputFormat outputFormat sampleInput sampleOutput timeLimit memoryLimit maxScore');
       responseData = lobby.toObject();
     }
 
@@ -358,13 +358,18 @@ router.put('/:id/start', protect, authorize('teacher', 'admin'), async (req, res
     lobby.startTime = now;
     lobby.endTime = new Date(now.getTime() + lobby.duration * 60000);
     
-    // For QUIZ_BEE mode, initialize problem tracking
+    // For QUIZ_BEE mode, initialize problem tracking but don't reveal yet
     if (lobby.matchType === 'QUIZ_BEE') {
       lobby.currentProblemIndex = 0;
-      lobby.problemStartTime = now;
+      // Don't set problemStartTime - host must reveal the first problem manually
+      lobby.problemStartTime = null;
     }
     
     await lobby.save();
+    
+    // Verify saved state
+    const savedLobby = await Lobby.findById(lobby._id);
+    console.log(`[start-match] Lobby ${lobby._id}: matchType=${savedLobby.matchType}, problemStartTime=${savedLobby.problemStartTime}, timePerProblem=${savedLobby.timePerProblem}, duration=${savedLobby.duration}`);
 
     // Populate problems for socket event
     await lobby.populate('problems', 'title difficulty description allowedLanguages constraints inputFormat outputFormat sampleInput sampleOutput timeLimit memoryLimit maxScore');
@@ -372,7 +377,7 @@ router.put('/:id/start', protect, authorize('teacher', 'admin'), async (req, res
     // Emit socket event to all participants
     const io = req.app.get('io');
     const eventData = {
-      lobbyId: lobby._id,
+      lobbyId: lobby._id.toString(),
       startTime: lobby.startTime,
       endTime: lobby.endTime,
       matchType: lobby.matchType,
@@ -451,7 +456,7 @@ router.put('/:id/end', protect, authorize('teacher', 'admin'), async (req, res) 
     // Emit socket event
     const io = req.app.get('io');
     io.to(`lobby-${lobby._id}`).emit('match-ended', {
-      lobbyId: lobby._id,
+      lobbyId: lobby._id.toString(),
       endTime: lobby.endTime
     });
 
@@ -632,10 +637,12 @@ router.put('/:id/next-problem', protect, authorize('teacher', 'admin'), async (r
       });
     }
 
-    // Advance to next problem
+    // Advance to next problem - but don't reveal it yet
     lobby.currentProblemIndex = nextIndex;
-    lobby.problemStartTime = new Date();
+    lobby.problemStartTime = null; // Host must click "Reveal" for each problem
     await lobby.save();
+    
+    console.log(`[next-problem] Lobby ${lobby._id}: advanced to problem ${nextIndex}, problemStartTime=${lobby.problemStartTime}`);
 
     // Get populated lobby data
     const populatedLobby = await Lobby.findById(lobby._id).populate('problems');
@@ -643,11 +650,12 @@ router.put('/:id/next-problem', protect, authorize('teacher', 'admin'), async (r
     // Emit socket event to all participants
     const io = req.app.get('io');
     io.to(`lobby-${lobby._id}`).emit('problem-change', {
-      lobbyId: lobby._id,
+      lobbyId: lobby._id.toString(),
       currentProblemIndex: nextIndex,
       problemId: lobby.problems[nextIndex],
       timePerProblem: lobby.timePerProblem,
-      totalProblems: lobby.problems.length
+      totalProblems: lobby.problems.length,
+      problemRevealed: false // Problem not revealed yet
     });
 
     res.json({
@@ -708,10 +716,12 @@ router.put('/:id/reveal-problem', protect, authorize('teacher', 'admin'), async 
       await lobby.save();
     }
 
+    console.log(`[reveal-problem] Lobby ${lobby._id}: timePerProblem=${lobby.timePerProblem}, problemStartTime=${lobby.problemStartTime}`);
+
     // Emit socket event to reveal problem
     const io = req.app.get('io');
     io.to(`lobby-${lobby._id}`).emit('problem-revealed', {
-      lobbyId: lobby._id,
+      lobbyId: lobby._id.toString(),
       currentProblemIndex: lobby.currentProblemIndex,
       problemId: lobby.problems[lobby.currentProblemIndex],
       timePerProblem: lobby.timePerProblem,

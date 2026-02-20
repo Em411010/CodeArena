@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { lobbiesAPI, submissionsAPI } from '../../services/api';
@@ -40,6 +40,37 @@ const QuizBeeArena = () => {
   const [solvedProblems, setSolvedProblems] = useState(new Set());
   const [problemRevealed, setProblemRevealed] = useState(false);
   const [waitingForHost, setWaitingForHost] = useState(true);
+  const [timeExpired, setTimeExpired] = useState(false);
+  const timerRef = useRef(null);
+
+  const startCountdown = (seconds) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    let remaining = seconds;
+    setProblemTimeLeft(remaining);
+    setTimeExpired(false);
+
+    timerRef.current = setInterval(() => {
+      remaining -= 1;
+      setProblemTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        setProblemTimeLeft(0);
+        setTimeExpired(true);
+        setProblemRevealed(false);
+        setWaitingForHost(true);
+        toast('⏰ Time is up! Waiting for host...', { icon: '⏰' });
+      }
+    }, 1000);
+  };
+
+  const stopCountdown = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     fetchLobby();
@@ -50,6 +81,7 @@ const QuizBeeArena = () => {
     socketService.onMatchEnded((data) => {
       const reason = data?.reason || 'Match has ended';
       toast.success(reason);
+      stopCountdown();
       setTimeout(() => {
         navigate(`/match/${id}/leaderboard`);
       }, 2000);
@@ -59,38 +91,52 @@ const QuizBeeArena = () => {
       fetchLeaderboard();
     });
 
-    // Listen for problem changes (host advancing to next problem)
+    // Host advanced to next problem
     socket.on('problem-change', (data) => {
       if (data.lobbyId === id) {
+        stopCountdown();
         setCurrentProblemIndex(data.currentProblemIndex);
         setResult(null);
         setProblemRevealed(false);
         setWaitingForHost(true);
+        setTimeExpired(false);
+        setProblemTimeLeft(0);
         toast.info(`Host moved to Problem ${data.currentProblemIndex + 1}/${data.totalProblems}`);
-        // Reset code for new problem
         setCode(defaultCode[language]);
-        fetchLobby();
+        // Use skipTimer=true so fetchLobby doesn't override socket-managed timer state
+        fetchLobby(true);
       }
     });
 
-    // Listen for problem revealed (host showing problem)
+    // Host revealed the problem — start countdown
     socket.on('problem-revealed', (data) => {
       if (data.lobbyId === id) {
         setProblemRevealed(true);
         setWaitingForHost(false);
-        toast.success('Problem revealed by host! Start solving! 🚀');
-        fetchLobby();
+        setTimeExpired(false);
+        toast.success('Problem revealed! Start solving! 🚀');
+        if (data.timePerProblem) {
+          startCountdown(data.timePerProblem * 60);
+        }
+        // Use skipTimer=true so fetchLobby doesn't restart/override the countdown
+        fetchLobby(true);
       }
     });
 
-    // Listen for time expired notification
+    // Server says time is up
     socket.on('problem-time-expired', (data) => {
       if (data.lobbyId === id) {
+        stopCountdown();
+        setProblemTimeLeft(0);
+        setTimeExpired(true);
+        setProblemRevealed(false);
+        setWaitingForHost(true);
         toast('⏰ Time is up! Waiting for host...', { icon: '⏰' });
       }
     });
 
     return () => {
+      stopCountdown();
       socketService.leaveLobby(id);
       socket.off('problem-change');
       socket.off('problem-revealed');
@@ -99,44 +145,59 @@ const QuizBeeArena = () => {
     };
   }, [id, navigate, language]);
 
-  useEffect(() => {
-    if (lobby?.problemStartTime && lobby?.timePerProblem) {
-      const interval = setInterval(() => {
-        const now = new Date().getTime();
-        const start = new Date(lobby.problemStartTime).getTime();
-        const elapsed = Math.floor((now - start) / 1000);
-        const remaining = Math.max(0, (lobby.timePerProblem * 60) - elapsed);
-        setProblemTimeLeft(remaining);
-
-        if (remaining === 0) {
-          clearInterval(interval);
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [lobby?.problemStartTime, lobby?.timePerProblem]);
-
-  const fetchLobby = async () => {
+  // skipTimer: when true, only refresh lobby/problem data without touching timer/reveal state
+  // This prevents race conditions when called from socket handlers
+  const fetchLobby = async (skipTimer = false) => {
     try {
       const { data } = await lobbiesAPI.getById(id);
+      
+      // Redirect to standard arena if this is NOT a Quiz Bee match
+      if (data.data.matchType !== 'QUIZ_BEE') {
+        navigate(`/match/${id}`, { replace: true });
+        return;
+      }
+      
       setLobby(data.data);
       
-      await data.data.populate('problems');
-      setProblems(data.data.problems);
+      // Problems are already populated by the backend
+      if (data.data.problems) {
+        setProblems(data.data.problems);
+      }
       setCurrentProblemIndex(data.data.currentProblemIndex || 0);
       
-      // Check if problem has been revealed by host
-      if (data.data.problemStartTime) {
-        setProblemRevealed(true);
-        setWaitingForHost(false);
-      } else {
-        setProblemRevealed(false);
-        setWaitingForHost(true);
+      if (!skipTimer) {
+        // Full timer initialization (initial page load / refresh only)
+        if (data.data.problemStartTime) {
+          const elapsed = Math.floor((Date.now() - new Date(data.data.problemStartTime).getTime()) / 1000);
+          const totalSec = (data.data.timePerProblem || 5) * 60;
+          // Clamp remaining to [0, totalSec] — prevents bug if problemStartTime is somehow in the future
+          const remaining = Math.min(totalSec, Math.max(0, totalSec - elapsed));
+          console.log('[QuizBeeArena] Timer calc: elapsed=', elapsed, 'totalSec=', totalSec, 'remaining=', remaining);
+          
+          if (remaining > 0) {
+            setProblemRevealed(true);
+            setWaitingForHost(false);
+            setTimeExpired(false);
+            startCountdown(remaining);
+          } else {
+            // Time already expired
+            setProblemRevealed(false);
+            setWaitingForHost(true);
+            setTimeExpired(true);
+            setProblemTimeLeft(0);
+          }
+        } else {
+          setProblemRevealed(false);
+          setWaitingForHost(true);
+          setTimeExpired(false);
+          setProblemTimeLeft(0);
+        }
       }
+      // When skipTimer=true, timer/reveal state is managed by socket events — don't touch it
       
       fetchLeaderboard();
     } catch (error) {
+      console.error('Fetch lobby error:', error);
       toast.error('Failed to load match');
       navigate('/my-matches');
     } finally {
@@ -236,23 +297,31 @@ const QuizBeeArena = () => {
             <div className="absolute inset-0 bg-arena-bg/95 backdrop-blur-sm z-10 flex items-center justify-center">
               <div className="text-center max-w-md px-6">
                 <div className="mb-6">
-                  <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-500/20 rounded-full mb-4">
-                    <Clock className="h-10 w-10 text-yellow-400 animate-pulse" />
+                  <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${
+                    timeExpired ? 'bg-red-500/20' : 'bg-yellow-500/20'
+                  }`}>
+                    <Clock className={`h-10 w-10 ${timeExpired ? 'text-red-400' : 'text-yellow-400 animate-pulse'}`} />
                   </div>
                 </div>
                 <h2 className="text-3xl font-bold text-white mb-3">
-                  Waiting for Host
+                  {timeExpired ? '⏰ Time\'s Up!' : 'Waiting for Host'}
                 </h2>
                 <p className="text-lg text-gray-300 mb-2">
-                  The host will reveal Problem {currentProblemIndex + 1} when ready
+                  {timeExpired
+                    ? 'Submissions for this problem are closed'
+                    : `The host will reveal Problem ${currentProblemIndex + 1} when ready`
+                  }
                 </p>
                 <p className="text-sm text-gray-400">
-                  In Quiz Bee mode, the host controls when each problem is shown
+                  {timeExpired
+                    ? 'Please wait for the host to move to the next problem'
+                    : 'In Quiz Bee mode, the host controls when each problem is shown'
+                  }
                 </p>
                 <div className="mt-8 flex items-center justify-center space-x-2">
-                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                  <div className={`w-3 h-3 rounded-full animate-bounce ${timeExpired ? 'bg-red-400' : 'bg-yellow-400'}`} style={{animationDelay: '0ms'}}></div>
+                  <div className={`w-3 h-3 rounded-full animate-bounce ${timeExpired ? 'bg-red-400' : 'bg-yellow-400'}`} style={{animationDelay: '150ms'}}></div>
+                  <div className={`w-3 h-3 rounded-full animate-bounce ${timeExpired ? 'bg-red-400' : 'bg-yellow-400'}`} style={{animationDelay: '300ms'}}></div>
                 </div>
               </div>
             </div>
@@ -339,7 +408,7 @@ const QuizBeeArena = () => {
               </select>
               <button
                 onClick={handleSubmit}
-                disabled={submitting || waitingForHost || !problemRevealed}
+                disabled={submitting || waitingForHost || !problemRevealed || timeExpired}
                 className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
               >
                 {submitting ? (
