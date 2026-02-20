@@ -101,7 +101,7 @@ const QuizBeeArena = () => {
         setWaitingForHost(true);
         setTimeExpired(false);
         setProblemTimeLeft(0);
-        toast.info(`Host moved to Problem ${data.currentProblemIndex + 1}/${data.totalProblems}`);
+        toast(`📢 Host moved to Problem ${data.currentProblemIndex + 1}/${data.totalProblems}`);
         setCode(defaultCode[language]);
         // Use skipTimer=true so fetchLobby doesn't override socket-managed timer state
         fetchLobby(true);

@@ -124,40 +124,40 @@ router.post('/', protect, [
         problemId,
         verdict: executionResult.verdict
       });
-    }
 
-    // Update lobby participant score if competition submission
-    if (lobbyId && executionResult.verdict === 'ACCEPTED') {
-      const lobby = await Lobby.findById(lobbyId);
-      const participantIndex = lobby.participants.findIndex(
-        p => p.user.toString() === req.user.id
-      );
+      // Update lobby participant score if competition submission
+      if (executionResult.verdict === 'ACCEPTED') {
+        const lobby = await Lobby.findById(lobbyId);
+        const participantIndex = lobby.participants.findIndex(
+          p => p.user.toString() === req.user.id
+        );
 
-      if (participantIndex !== -1) {
-        const participant = lobby.participants[participantIndex];
-        
-        // Only add score if not already solved
-        if (!participant.solvedProblems.includes(problemId)) {
-          participant.solvedProblems.push(problemId);
-          participant.score += score;
-          await lobby.save();
-
-          // Check if all participants have solved all problems
-          const allParticipantsFinished = lobby.participants.every(
-            p => p.solvedProblems.length === lobby.problems.length
-          );
-
-          if (allParticipantsFinished && lobby.status === 'ONGOING') {
-            // End the match automatically
-            lobby.status = 'FINISHED';
-            lobby.endTime = new Date();
+        if (participantIndex !== -1) {
+          const participant = lobby.participants[participantIndex];
+          
+          // Only add score if not already solved
+          if (!participant.solvedProblems.includes(problemId)) {
+            participant.solvedProblems.push(problemId);
+            participant.score += score;
             await lobby.save();
 
-            io.to(`lobby-${lobbyId}`).emit('match-ended', {
-              lobbyId,
-              endTime: lobby.endTime,
-              reason: 'All participants completed all problems'
-            });
+            // Check if all participants have solved all problems
+            const allParticipantsFinished = lobby.participants.every(
+              p => p.solvedProblems.length === lobby.problems.length
+            );
+
+            if (allParticipantsFinished && lobby.status === 'ONGOING') {
+              // End the match automatically
+              lobby.status = 'FINISHED';
+              lobby.endTime = new Date();
+              await lobby.save();
+
+              io.to(`lobby-${lobbyId}`).emit('match-ended', {
+                lobbyId,
+                endTime: lobby.endTime,
+                reason: 'All participants completed all problems'
+              });
+            }
           }
         }
       }
