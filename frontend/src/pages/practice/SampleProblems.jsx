@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sampleProblemsAPI } from '../../services/api';
-import { Search, Filter, BookOpen, Loader2 } from 'lucide-react';
+import { Search, Filter, BookOpen, Loader2, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const getSolvedSet = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const key = `codearena_solved_${user._id || 'guest'}`;
+    return new Set(JSON.parse(localStorage.getItem(key) || '[]'));
+  } catch { return new Set(); }
+};
 
 const SampleProblems = () => {
   const navigate = useNavigate();
@@ -10,6 +18,18 @@ const SampleProblems = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [difficulty, setDifficulty] = useState('');
+  const [solvedSet, setSolvedSet] = useState(new Set());
+
+  useEffect(() => {
+    setSolvedSet(getSolvedSet());
+  }, []);
+
+  // Refresh solved set whenever the page regains focus (e.g. navigated back from solver)
+  useEffect(() => {
+    const onFocus = () => setSolvedSet(getSolvedSet());
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
 
   useEffect(() => {
     fetchProblems();
@@ -101,6 +121,9 @@ const SampleProblems = () => {
           <table className="w-full">
             <thead className="bg-arena-dark">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-8">
+                  Status
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Problem
                 </th>
@@ -120,8 +143,13 @@ const SampleProblems = () => {
                   className="hover:bg-arena-dark/50 transition-colors cursor-pointer"
                 >
                   <td className="px-6 py-4">
+                    {solvedSet.has(problem._id)
+                      ? <CheckCircle className="h-5 w-5 text-green-400" />
+                      : <span className="h-5 w-5 block rounded-full border border-gray-600" />}
+                  </td>
+                  <td className="px-6 py-4">
                     <div>
-                      <p className="text-white font-medium">{problem.title}</p>
+                      <p className={`font-medium ${solvedSet.has(problem._id) ? 'text-green-400' : 'text-white'}`}>{problem.title}</p>
                       {problem.tags && problem.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {problem.tags.slice(0, 3).map((tag, i) => (
