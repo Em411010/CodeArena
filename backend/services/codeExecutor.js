@@ -1,55 +1,36 @@
 import axios from 'axios';
 
-// Judge0 CE — free public API, no auth required
-// Can be overridden via env var to use a self-hosted or RapidAPI instance
-const JUDGE0_API_URL = process.env.JUDGE0_API_URL || 'https://ce.judge0.com';
+// Wandbox API — free, no auth required, reliable public instance
+// https://wandbox.org/
+const WANDBOX_API_URL = process.env.WANDBOX_API_URL || 'https://wandbox.org/api';
 
-// Judge0 language IDs
+// Wandbox compiler config per language
 const languageConfig = {
-  c:          50,  // C (GCC 9.2.0)
-  cpp:        54,  // C++ (GCC 9.2.0)
-  python:     71,  // Python (3.8.1)
-  javascript: 63,  // JavaScript (Node.js 12.14.0)
-  java:       62,  // Java (OpenJDK 13.0.1)
-};
-
-// Judge0 status IDs
-const JUDGE0_STATUS = {
-  1: 'PENDING',               // In Queue
-  2: 'PENDING',               // Processing
-  3: 'ACCEPTED',              // Accepted (output match checked separately)
-  4: 'WRONG_ANSWER',          // Wrong Answer
-  5: 'TIME_LIMIT_EXCEEDED',
-  6: 'COMPILATION_ERROR',
-  7: 'RUNTIME_ERROR',         // SIGSEGV
-  8: 'RUNTIME_ERROR',         // SIGXFSZ
-  9: 'RUNTIME_ERROR',         // SIGFPE
-  10: 'RUNTIME_ERROR',        // SIGABRT
-  11: 'RUNTIME_ERROR',        // NZEC
-  12: 'RUNTIME_ERROR',        // Other
-  13: 'RUNTIME_ERROR',        // Internal Error
-  14: 'RUNTIME_ERROR',        // Exec Format Error
+  c:          { compiler: 'gcc-head',        options: '-O2 -lm' },
+  cpp:        { compiler: 'g++-head',        options: '-O2 -std=c++17' },
+  python:     { compiler: 'cpython-3.12.3',  options: '' },
+  javascript: { compiler: 'nodejs-20.11.0',  options: '' },
+  java:       { compiler: 'openjdk-22',      options: '' },
 };
 
 /**
- * Execute code against a single test case using Judge0 CE API
+ * Execute code against a single test case using Wandbox API
  */
 const executeTestCase = async (code, language, input, timeLimit = 3000) => {
-  const languageId = languageConfig[language];
+  const lang = languageConfig[language];
 
-  if (!languageId) {
+  if (!lang) {
     throw new Error(`Unsupported language: ${language}`);
   }
 
   try {
     const response = await axios.post(
-      `${JUDGE0_API_URL}/submissions?base64_encoded=false&wait=true`,
+      `${WANDBOX_API_URL}/compile.json`,
       {
-        source_code: code,
-        language_id: languageId,
+        compiler: lang.compiler,
+        code,
         stdin: input || '',
-        cpu_time_limit: Math.max(1, timeLimit / 1000),  // seconds
-        memory_limit: 262144,                            // 256 MB in KB
+        'compiler-option-raw': lang.options,
       },
       {
         timeout: 30000,
@@ -60,8 +41,7 @@ const executeTestCase = async (code, language, input, timeLimit = 3000) => {
     return response.data;
   } catch (error) {
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      // Simulate a TLE result so the verdict flow still works
-      return { status: { id: 5, description: 'Time Limit Exceeded' } };
+      return { status: '-1', signal: 'SIGKILL', program_output: '', program_error: 'Time limit exceeded', compiler_error: '' };
     }
     throw error;
   }
@@ -79,44 +59,40 @@ const normalizeOutput = (output) => {
 };
 
 /**
- * Determine verdict based on Judge0 response
+ * Determine verdict based on Wandbox API response
  */
-const getVerdict = (judge0Result, expectedOutput) => {
-  const statusId = judge0Result?.status?.id;
-
-  if (statusId === 6) {
+const getVerdict = (wandboxResult, expectedOutput) => {
+  // Compilation error
+  if (wandboxResult.compiler_error) {
     return {
       verdict: 'COMPILATION_ERROR',
-      error: judge0Result.compile_output || judge0Result.stderr || 'Compilation failed',
+      error: wandboxResult.compiler_error,
     };
   }
 
-  if (statusId === 5) {
+  // Time limit exceeded
+  if (wandboxResult.signal === 'SIGKILL' || wandboxResult.signal === 'SIGXCPU') {
     return { verdict: 'TIME_LIMIT_EXCEEDED', error: 'Time limit exceeded' };
   }
 
-  if (statusId >= 7 && statusId <= 14) {
+  // Runtime error (non-zero exit)
+  const exitCode = parseInt(wandboxResult.status, 10);
+  if (exitCode !== 0 && wandboxResult.program_error) {
     return {
       verdict: 'RUNTIME_ERROR',
-      error: judge0Result.stderr || `Runtime error (status ${statusId})`,
+      error: wandboxResult.program_error,
     };
   }
 
-  if (statusId === 3 || statusId === 4) {
-    const actualOutput = normalizeOutput(judge0Result.stdout);
-    const expected = normalizeOutput(expectedOutput);
+  // Compare output
+  const actualOutput = normalizeOutput(wandboxResult.program_output);
+  const expected = normalizeOutput(expectedOutput);
 
-    if (actualOutput === expected) {
-      return { verdict: 'PASSED', output: actualOutput };
-    } else {
-      return { verdict: 'WRONG_ANSWER', output: actualOutput, expected };
-    }
+  if (actualOutput === expected) {
+    return { verdict: 'PASSED', output: actualOutput };
+  } else {
+    return { verdict: 'WRONG_ANSWER', output: actualOutput, expected };
   }
-
-  return {
-    verdict: 'RUNTIME_ERROR',
-    error: `Unexpected status from execution service: ${statusId}`,
-  };
 };
 
 /**
@@ -141,8 +117,8 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
     const testCase = testCases[i];
     
     try {
-      const judge0Result = await executeTestCase(code, language, testCase.input, timeLimit);
-      const testVerdict = getVerdict(judge0Result, testCase.expectedOutput);
+      const wandboxResult = await executeTestCase(code, language, testCase.input, timeLimit);
+      const testVerdict = getVerdict(wandboxResult, testCase.expectedOutput);
 
       const testResult = {
         testCaseIndex: i + 1,
@@ -180,7 +156,7 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
 
     } catch (error) {
       const statusCode = error?.response?.status;
-      const isApiError = statusCode === 401 || statusCode === 403 || statusCode === 429 || (statusCode >= 500);
+      const isApiError = statusCode === 429 || (statusCode >= 500);
       const errMsg = isApiError
         ? `Code execution service unavailable (HTTP ${statusCode}). Please try again later.`
         : 'Failed to execute test case';
@@ -207,10 +183,7 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
       }
     }
 
-    // Delay between test cases to respect Judge0 rate limits
-    if (i < testCases.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
+
   }
 
   results.executionTime = Date.now() - startTime;
@@ -235,10 +208,10 @@ export const executeCode = async (code, language, testCases, timeLimit = 3000) =
  */
 export const getAvailableRuntimes = async () => {
   try {
-    const response = await axios.get(`${JUDGE0_API_URL}/languages`);
+    const response = await axios.get(`${WANDBOX_API_URL}/list.json`);
     return response.data;
   } catch (error) {
-    console.error('Failed to fetch languages:', error.message);
+    console.error('Failed to fetch runtimes:', error.message);
     return [];
   }
 };
