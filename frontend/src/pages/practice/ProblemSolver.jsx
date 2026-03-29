@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { sampleProblemsAPI, submissionsAPI } from '../../services/api';
 import {
@@ -14,10 +14,30 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const getSolvedKey = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return `codearena_solved_${user._id || 'guest'}`;
+  } catch { return 'codearena_solved_guest'; }
+};
+
+const markSolved = (problemId) => {
+  try {
+    const key = getSolvedKey();
+    const solved = JSON.parse(localStorage.getItem(key) || '[]');
+    if (!solved.includes(problemId)) {
+      solved.push(problemId);
+      localStorage.setItem(key, JSON.stringify(solved));
+    }
+  } catch {}
+};
+
 const languageMap = {
   c: 'c',
   python: 'python',
 };
+
+const SUPPORTED_LANGUAGES = ['c', 'python'];
 
 const defaultCode = {
   c: '#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <math.h>\n#include <ctype.h>\n\nint main() {\n    // Your code here\n    \n    return 0;\n}\n',
@@ -26,6 +46,7 @@ const defaultCode = {
 
 const ProblemSolver = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [problem, setProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -33,20 +54,21 @@ const ProblemSolver = () => {
   const [code, setCode] = useState(defaultCode.c);
   const [result, setResult] = useState(null);
   const [showDescription, setShowDescription] = useState(true);
+  const [countdown, setCountdown] = useState(null);
+  const countdownRef = useRef(null);
 
   useEffect(() => {
     fetchProblem();
+    return () => clearInterval(countdownRef.current);
   }, [id]);
 
   const fetchProblem = async () => {
     try {
       const { data } = await sampleProblemsAPI.getById(id);
       setProblem(data.data);
-      if (data.data.allowedLanguages?.length > 0) {
-        const firstLang = data.data.allowedLanguages[0];
-        setLanguage(firstLang);
-        setCode(defaultCode[firstLang] || '');
-      }
+      // Practice mode: always allow all supported languages, default to C
+      setLanguage('c');
+      setCode(defaultCode.c);
     } catch (error) {
       toast.error('Failed to load problem');
     } finally {
@@ -78,11 +100,24 @@ const ProblemSolver = () => {
       });
 
       setResult(data.data);
-      
+
       if (data.data.verdict === 'ACCEPTED') {
+        markSolved(id);
         toast.success('All test cases passed! 🎉');
+        // Countdown to go back
+        let secs = 3;
+        setCountdown(secs);
+        countdownRef.current = setInterval(() => {
+          secs -= 1;
+          if (secs <= 0) {
+            clearInterval(countdownRef.current);
+            navigate('/practice');
+          } else {
+            setCountdown(secs);
+          }
+        }, 1000);
       } else {
-        toast.error(`Verdict: ${data.data.verdict.replace('_', ' ')}`);
+        toast.error(`Verdict: ${data.data.verdict.replace(/_/g, ' ')}`);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Submission failed');
@@ -142,9 +177,9 @@ const ProblemSolver = () => {
             onChange={(e) => handleLanguageChange(e.target.value)}
             className="bg-arena-card border border-arena-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            {problem.allowedLanguages?.map((lang) => (
+            {SUPPORTED_LANGUAGES.map((lang) => (
               <option key={lang} value={lang} className="capitalize">
-                {lang.toUpperCase()}
+                {lang === 'python' ? 'Python 3' : lang.toUpperCase()}
               </option>
             ))}
           </select>
@@ -277,6 +312,27 @@ const ProblemSolver = () => {
                 <pre className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm overflow-x-auto">
                   {result.errorMessage}
                 </pre>
+              )}
+              {result.verdict === 'ACCEPTED' && (
+                <div className="mt-3 flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-3">
+                  <span className="text-green-400 text-sm font-medium">
+                    🎉 Problem solved! Returning to practice in {countdown}s...
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { clearInterval(countdownRef.current); setResult(null); setCountdown(null); setCode(defaultCode[language]); }}
+                      className="text-xs px-3 py-1 bg-arena-dark border border-arena-border text-gray-300 rounded hover:text-white transition-colors"
+                    >
+                      Try Again
+                    </button>
+                    <button
+                      onClick={() => { clearInterval(countdownRef.current); navigate('/practice'); }}
+                      className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                    >
+                      Back to Practice
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}
