@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import connectDB from '../config/db.js';
 import CompetitionProblem from '../models/CompetitionProblem.js';
+import SampleProblem from '../models/SampleProblem.js';
 import User from '../models/User.js';
 
 dotenv.config();
@@ -691,27 +692,37 @@ const seed30Problems = async () => {
     let skipped = 0;
 
     for (const problemData of problems) {
-      const exists = await CompetitionProblem.findOne({
+      // ── CompetitionProblem (shared, for teacher lobbies) ──────────────────
+      const existsComp = await CompetitionProblem.findOne({
         title: problemData.title,
         isShared: true,
       });
 
-      if (exists) {
-        console.log(`  ⏭  Skipped (exists): ${problemData.title}`);
+      if (!existsComp) {
+        await CompetitionProblem.create({
+          ...problemData,
+          createdBy: admin._id,
+          isShared: true,
+        });
+        console.log(`  ✓ [Competition] Created: ${problemData.title}`);
+        created++;
+      } else {
         skipped++;
-        continue;
       }
 
-      await CompetitionProblem.create({
-        ...problemData,
-        createdBy: admin._id,
-        isShared: true,
-      });
-      console.log(`  ✓ Created: ${problemData.title}`);
-      created++;
+      // ── SampleProblem (for practice mode) ────────────────────────────────
+      const existsSample = await SampleProblem.findOne({ title: problemData.title });
+
+      if (!existsSample) {
+        await SampleProblem.create({
+          ...problemData,
+          createdBy: admin._id,
+        });
+        console.log(`  ✓ [Practice]    Created: ${problemData.title}`);
+      }
     }
 
-    console.log(`\n✅ Done! ${created} problems created, ${skipped} skipped.`);
+    console.log(`\n✅ Done! ${created} competition problems created, ${skipped} skipped.`);
     process.exit(0);
   } catch (error) {
     console.error('❌ Error seeding problems:', error);
