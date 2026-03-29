@@ -5,9 +5,10 @@ import axios from 'axios';
 const WANDBOX_API_URL = process.env.WANDBOX_API_URL || 'https://wandbox.org/api';
 
 // Wandbox compiler config per language
+// Note: compiler-option-raw must be newline-separated, not space-separated
 const languageConfig = {
-  c:          { compiler: 'gcc-head',        options: '-O2 -lm' },
-  cpp:        { compiler: 'g++-head',        options: '-O2 -std=c++17' },
+  c:          { compiler: 'gcc-head-c',      options: '-O2\n-lm' },
+  cpp:        { compiler: 'gcc-head',        options: '-O2\n-std=c++17' },
   python:     { compiler: 'cpython-3.12.3',  options: '' },
   javascript: { compiler: 'nodejs-20.11.0',  options: '' },
   java:       { compiler: 'openjdk-22',      options: '' },
