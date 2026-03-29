@@ -62,26 +62,23 @@ Your program should:
     title: 'Even or Odd',
     difficulty: 'easy',
     maxScore: 50,
-    description: `Write a C program that reads an integer and determines if it is even or odd.
+    description: `Write a C program that determines whether a given integer is even or odd.
 
-Your program should:
-- Read one integer
-- Check if it is even or odd
-- Print "EVEN" if the number is even, or "ODD" if the number is odd`,
-    constraints: '- -10000 ≤ n ≤ 10000',
+Use the modulo operator (%) to check if a number is divisible by 2.`,
+    constraints: '-10^6 ≤ n ≤ 10^6',
     inputFormat: 'A single integer n',
-    outputFormat: 'Print "EVEN" or "ODD" (without quotes)',
+    outputFormat: 'Print "Even" if n is even, otherwise print "Odd"',
     sampleInput: '4',
-    sampleOutput: 'EVEN',
+    sampleOutput: 'Even',
     allowedLanguages: ['c'],
     timeLimit: 2000,
     memoryLimit: 256,
     testCases: [
-      { input: '4', expectedOutput: 'EVEN', isHidden: false, points: 10 },
-      { input: '7', expectedOutput: 'ODD', isHidden: true, points: 10 },
-      { input: '0', expectedOutput: 'EVEN', isHidden: true, points: 10 },
-      { input: '-3', expectedOutput: 'ODD', isHidden: true, points: 10 },
-      { input: '100', expectedOutput: 'EVEN', isHidden: true, points: 10 }
+      { input: '4', expectedOutput: 'Even', isHidden: false, points: 10 },
+      { input: '7', expectedOutput: 'Odd', isHidden: true, points: 10 },
+      { input: '0', expectedOutput: 'Even', isHidden: true, points: 10 },
+      { input: '-3', expectedOutput: 'Odd', isHidden: true, points: 10 },
+      { input: '100', expectedOutput: 'Even', isHidden: true, points: 10 }
     ]
   },
   {
