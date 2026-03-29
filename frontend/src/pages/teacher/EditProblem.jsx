@@ -114,7 +114,7 @@ const EditProblem = () => {
     );
   }
 
-  const languages = ['c'];
+  const languages = ['c', 'python'];
 
   return (
     <div className="max-w-4xl mx-auto">

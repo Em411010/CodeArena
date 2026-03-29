@@ -9,7 +9,7 @@ const WANDBOX_API_URL = process.env.WANDBOX_API_URL || 'https://wandbox.org/api'
 const languageConfig = {
   c:          { compiler: 'gcc-head-c',      options: '-O2\n-lm' },
   cpp:        { compiler: 'gcc-head',        options: '-O2\n-std=c++17' },
-  python:     { compiler: 'cpython-3.12.3',  options: '' },
+  python:     { compiler: 'cpython-3.12.7',  options: '' },
   javascript: { compiler: 'nodejs-20.11.0',  options: '' },
   java:       { compiler: 'openjdk-22',      options: '' },
 };

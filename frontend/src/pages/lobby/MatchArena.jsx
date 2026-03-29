@@ -18,10 +18,12 @@ import toast from 'react-hot-toast';
 
 const languageMap = {
   c: 'c',
+  python: 'python',
 };
 
 const defaultCode = {
   c: '#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <math.h>\n#include <ctype.h>\n\nint main() {\n    // Your code here\n    \n    return 0;\n}\n',
+  python: '# Your code here\n',
 };
 
 const MatchArena = () => {
