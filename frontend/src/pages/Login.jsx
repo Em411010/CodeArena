@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:5000/api');
 
@@ -14,6 +15,14 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error === 'google_auth_failed') toast.error('Google sign-in failed. Please try again.');
+    else if (error === 'facebook_auth_failed') toast.error('Facebook sign-in failed. Please try again.');
+    else if (error) toast.error('OAuth sign-in failed. Please try again.');
+  }, [searchParams]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
