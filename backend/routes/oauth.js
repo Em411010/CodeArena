@@ -21,8 +21,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 // @access  Public
 router.get('/google',
   passport.authenticate('google', { 
-    scope: ['profile', 'email'],
-    session: false 
+    scope: ['profile', 'email']
   })
 );
 
@@ -50,8 +49,7 @@ router.get('/google/callback',
 // @access  Public
 router.get('/facebook',
   passport.authenticate('facebook', { 
-    scope: ['email'],
-    session: false 
+    scope: ['email']
   })
 );
 
