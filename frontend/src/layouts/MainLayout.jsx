@@ -1,4 +1,5 @@
 import { Outlet, Link } from 'react-router-dom';
+import { Code2 } from 'lucide-react';
 
 const MainLayout = () => {
   return (
@@ -17,7 +18,7 @@ const MainLayout = () => {
             </ul>
           </div>
           <Link to="/" className="btn btn-ghost text-xl gap-2">
-            <img src="/logo.png" alt="CodeArena" className="h-7 w-7" />
+            <Code2 className="h-7 w-7 text-primary" />
             CodeArena
           </Link>
         </div>
@@ -38,7 +39,7 @@ const MainLayout = () => {
       <footer className="footer footer-center p-6 bg-base-300 text-base-content border-t border-base-content/10">
         <aside>
           <div className="flex items-center gap-2 mb-2">
-            <img src="/logo.png" alt="CodeArena" className="h-8 w-8" />
+            <Code2 className="h-8 w-8 text-primary" />
             <span className="font-bold">CodeArena</span>
           </div>
           <p>© 2026 CodeArena. All rights reserved.</p>

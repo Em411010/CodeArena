@@ -51,7 +51,7 @@ const DashboardLayout = () => {
     <>
       <div className="flex items-center h-16 px-6 border-b border-base-content/10">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <img src="/logo.png" alt="CodeArena" className="h-8 w-8" />
+          <Code2 className="h-8 w-8 text-primary" />
           <span className="text-xl font-bold">CodeArena</span>
         </Link>
       </div>
@@ -142,7 +142,7 @@ const DashboardLayout = () => {
           </div>
           <div className="flex-1">
             <Link to="/dashboard" className="flex items-center gap-2">
-              <img src="/logo.png" alt="CodeArena" className="h-6 w-6" />
+              <Code2 className="h-6 w-6 text-primary" />
               <span className="font-bold">CodeArena</span>
             </Link>
           </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { competitionProblemsAPI } from '../../services/api';
-import { FileCode, Plus, Loader2, Edit, Trash2, Lock, Search } from 'lucide-react';
+import { Code2, Plus, Loader2, Edit, Trash2, Lock, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -127,7 +127,7 @@ const TeacherProblems = () => {
 
       {problems.length === 0 ? (
         <div className="bg-arena-card border border-arena-border rounded-xl p-12 text-center">
-          <FileCode className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <Code2 className="h-12 w-12 text-gray-600 mx-auto mb-4" />
           <h3 className="text-white font-medium mb-2">No problems yet</h3>
           <p className="text-gray-400 text-sm mb-4">
             Create your first competition problem to use in matches
@@ -142,7 +142,7 @@ const TeacherProblems = () => {
         </div>
       ) : filteredProblems.length === 0 ? (
         <div className="bg-arena-card border border-arena-border rounded-xl p-12 text-center">
-          <FileCode className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <Code2 className="h-12 w-12 text-gray-600 mx-auto mb-4" />
           <h3 className="text-white font-medium mb-2">No problems match</h3>
           <p className="text-gray-400 text-sm">Try adjusting your search or language filter.</p>
         </div>
