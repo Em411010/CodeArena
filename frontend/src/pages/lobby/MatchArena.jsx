@@ -110,7 +110,8 @@ const MatchArena = () => {
       
       if (data.data.problems?.length > 0) {
         const firstProblem = data.data.problems[0];
-        const firstLang = firstProblem.allowedLanguages?.[0] || 'c';
+        const matchLang = data.data.settings?.matchLanguage?.toLowerCase();
+        const firstLang = matchLang || (firstProblem.allowedLanguages?.[0]) || 'c';
         setLanguage(firstLang);
         setCode(defaultCode[firstLang] || defaultCode.c);
       }
@@ -146,7 +147,8 @@ const MatchArena = () => {
   const handleProblemChange = (index) => {
     setCurrentProblemIndex(index);
     const problem = problems[index];
-    const lang = problem.allowedLanguages?.[0] || 'c';
+    const matchLang = lobby?.settings?.matchLanguage?.toLowerCase();
+    const lang = matchLang || (problem.allowedLanguages?.[0]) || 'c';
     setLanguage(lang);
     setCode(defaultCode[lang] || defaultCode.c);
     setResult(null);
@@ -302,9 +304,15 @@ const MatchArena = () => {
                 }}
                 className="bg-arena-card border border-arena-border rounded px-2 py-1 text-white text-sm"
               >
-                {currentProblem?.allowedLanguages?.map((lang) => (
-                  <option key={lang} value={lang}>{lang.toUpperCase()}</option>
-                ))}
+                {(() => {
+                  const matchLang = lobby?.settings?.matchLanguage?.toLowerCase();
+                  const langs = matchLang
+                    ? [matchLang]
+                    : (currentProblem?.allowedLanguages || []);
+                  return langs.map((lang) => (
+                    <option key={lang} value={lang}>{lang.toUpperCase()}</option>
+                  ));
+                })()}
               </select>
               <button
                 onClick={handleSubmit}

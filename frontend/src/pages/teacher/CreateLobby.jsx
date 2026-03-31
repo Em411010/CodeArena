@@ -1,14 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { lobbiesAPI, competitionProblemsAPI } from '../../services/api';
-import { ArrowLeft, Loader2, Save, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Check, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const DIFFICULTY_ORDER = { easy: 0, medium: 1, hard: 2 };
+const LANGUAGES = ['c', 'cpp', 'python', 'javascript', 'java'];
 
 const CreateLobby = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [problems, setProblems] = useState([]);
   const [loadingProblems, setLoadingProblems] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterDifficulty, setFilterDifficulty] = useState('');
+  const [filterLanguage, setFilterLanguage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -20,6 +26,7 @@ const CreateLobby = () => {
       maxParticipants: 100,
       allowLateJoin: false,
       showLeaderboard: true,
+      matchLanguage: '',
     },
   });
 
@@ -116,6 +123,22 @@ const CreateLobby = () => {
       default: return 'bg-gray-500/20 text-gray-400';
     }
   };
+
+  const sortedFilteredProblems = useMemo(() => {
+    const effectiveLang = filterLanguage || formData.settings.matchLanguage;
+    return problems
+      .filter(p => {
+        const matchesSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
+        const matchesDiff = !filterDifficulty || p.difficulty === filterDifficulty;
+        const matchesLang = !effectiveLang || p.allowedLanguages?.includes(effectiveLang);
+        return matchesSearch && matchesDiff && matchesLang;
+      })
+      .sort((a, b) => {
+        const diffDiff = (DIFFICULTY_ORDER[a.difficulty] ?? 99) - (DIFFICULTY_ORDER[b.difficulty] ?? 99);
+        if (diffDiff !== 0) return diffDiff;
+        return a.title.localeCompare(b.title);
+      });
+  }, [problems, search, filterDifficulty, filterLanguage, formData.settings.matchLanguage]);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -248,6 +271,25 @@ const CreateLobby = () => {
               />
               <span className="text-gray-300">Allow late join after match starts</span>
             </label>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Match Language Restriction</label>
+              <select
+                name="matchLanguage"
+                value={formData.settings.matchLanguage}
+                onChange={handleSettingChange}
+                className="w-full md:w-64 px-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">All languages allowed</option>
+                {LANGUAGES.map(lang => (
+                  <option key={lang} value={lang}>{lang.toUpperCase()} only</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                {formData.settings.matchLanguage
+                  ? `Participants will only be able to submit in ${formData.settings.matchLanguage.toUpperCase()}`
+                  : 'Participants can use any language allowed by each problem'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -255,7 +297,41 @@ const CreateLobby = () => {
           <h2 className="text-lg font-semibold text-white mb-4">
             Select Problems <span className="text-gray-400 font-normal">({formData.problems.length} selected)</span>
           </h2>
-          
+
+          {/* Search & Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search problems..."
+                className="w-full pl-9 pr-4 py-2 bg-arena-dark border border-arena-border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <select
+              value={filterDifficulty}
+              onChange={e => setFilterDifficulty(e.target.value)}
+              className="px-3 py-2 bg-arena-dark border border-arena-border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">All difficulties</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+            <select
+              value={filterLanguage}
+              onChange={e => setFilterLanguage(e.target.value)}
+              className="px-3 py-2 bg-arena-dark border border-arena-border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">All languages</option>
+              {LANGUAGES.map(lang => (
+                <option key={lang} value={lang}>{lang.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
+
           {loadingProblems ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
@@ -265,9 +341,13 @@ const CreateLobby = () => {
               <p className="text-gray-400">No problems available</p>
               <p className="text-gray-500 text-sm mt-1">Create some problems first</p>
             </div>
+          ) : sortedFilteredProblems.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-400">No problems match your filters</p>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {problems.map((problem) => (
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {sortedFilteredProblems.map((problem) => (
                 <div
                   key={problem._id}
                   onClick={() => toggleProblem(problem._id)}
@@ -277,22 +357,27 @@ const CreateLobby = () => {
                       : 'bg-arena-dark border-2 border-transparent hover:border-arena-border'
                   }`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${
-                      formData.problems.includes(problem._id)
-                        ? 'bg-primary-600'
-                        : 'bg-arena-border'
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className={`w-5 h-5 flex-shrink-0 rounded flex items-center justify-center ${
+                      formData.problems.includes(problem._id) ? 'bg-primary-600' : 'bg-arena-border'
                     }`}>
                       {formData.problems.includes(problem._id) && (
                         <Check className="h-3 w-3 text-white" />
                       )}
                     </div>
-                    <span className="text-white font-medium">{problem.title}</span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getDifficultyColor(problem.difficulty)}`}>
+                    <span className="text-white font-medium truncate">{problem.title}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize flex-shrink-0 ${getDifficultyColor(problem.difficulty)}`}>
                       {problem.difficulty}
                     </span>
+                    <div className="hidden sm:flex gap-1">
+                      {(problem.allowedLanguages || []).map(lang => (
+                        <span key={lang} className="px-1.5 py-0.5 rounded text-xs bg-arena-border text-gray-300 uppercase">
+                          {lang}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <span className="text-gray-400 text-sm">{problem.maxScore} pts</span>
+                  <span className="text-gray-400 text-sm flex-shrink-0 ml-2">{problem.maxScore} pts</span>
                 </div>
               ))}
             </div>

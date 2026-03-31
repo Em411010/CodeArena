@@ -18,25 +18,30 @@ const OAuthCallback = () => {
 
       if (errorParam) {
         setError(`Authentication failed with ${provider || 'provider'}`);
-        toast.error('OAuth authentication failed');
+        toast.error('OAuth authentication failed', { id: 'oauth-error' });
         setTimeout(() => navigate('/login'), 2000);
         return;
       }
 
       if (!token) {
         setError('No authentication token received');
-        toast.error('Authentication failed');
+        toast.error('Authentication failed', { id: 'oauth-error' });
         setTimeout(() => navigate('/login'), 2000);
         return;
       }
 
+      // Prevent double-execution (React StrictMode mounts twice)
+      const processedKey = `oauth_processed_${token.slice(-16)}`;
+      if (sessionStorage.getItem(processedKey)) return;
+      sessionStorage.setItem(processedKey, '1');
+
       try {
         await loginWithToken(token);
-        toast.success(`Logged in with ${provider || 'OAuth'}!`);
+        toast.success(`Logged in with ${provider || 'OAuth'}!`, { id: 'oauth-success' });
         navigate('/dashboard');
       } catch (err) {
         setError('Failed to complete authentication');
-        toast.error('Authentication failed');
+        toast.error('Authentication failed', { id: 'oauth-error' });
         setTimeout(() => navigate('/login'), 2000);
       }
     };

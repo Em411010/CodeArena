@@ -5,11 +5,14 @@ import { FileCode, Plus, Loader2, Edit, Trash2, Lock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
+const LANGUAGES = ['c', 'cpp', 'python', 'javascript', 'java'];
+
 const TeacherProblems = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [langFilter, setLangFilter] = useState('');
 
   useEffect(() => {
     fetchProblems();
@@ -37,6 +40,10 @@ const TeacherProblems = () => {
       toast.error(error.response?.data?.message || 'Failed to delete problem');
     }
   };
+
+  const filteredProblems = langFilter
+    ? problems.filter(p => p.allowedLanguages?.includes(langFilter))
+    : problems;
 
   const getDifficultyColor = (diff) => {
     switch (diff) {
@@ -71,6 +78,31 @@ const TeacherProblems = () => {
         </Link>
       </div>
 
+      <div className="flex items-center gap-3">
+        <span className="text-gray-400 text-sm">Filter by language:</span>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setLangFilter('')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              langFilter === '' ? 'bg-primary-600 text-white' : 'bg-arena-dark text-gray-400 hover:text-white'
+            }`}
+          >
+            All
+          </button>
+          {LANGUAGES.map(lang => (
+            <button
+              key={lang}
+              onClick={() => setLangFilter(lang === langFilter ? '' : lang)}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors uppercase ${
+                langFilter === lang ? 'bg-primary-600 text-white' : 'bg-arena-dark text-gray-400 hover:text-white'
+              }`}
+            >
+              {lang}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {problems.length === 0 ? (
         <div className="bg-arena-card border border-arena-border rounded-xl p-12 text-center">
           <FileCode className="h-12 w-12 text-gray-600 mx-auto mb-4" />
@@ -86,6 +118,12 @@ const TeacherProblems = () => {
             Create Problem
           </Link>
         </div>
+      ) : filteredProblems.length === 0 ? (
+        <div className="bg-arena-card border border-arena-border rounded-xl p-12 text-center">
+          <FileCode className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <h3 className="text-white font-medium mb-2">No problems match this language</h3>
+          <p className="text-gray-400 text-sm">Try selecting a different language filter.</p>
+        </div>
       ) : (
         <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden">
           <table className="w-full">
@@ -96,11 +134,12 @@ const TeacherProblems = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden md:table-cell">Difficulty</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden md:table-cell">Max Score</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden lg:table-cell">Test Cases</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden xl:table-cell">Languages</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-arena-border">
-              {problems.map((problem) => (
+              {filteredProblems.map((problem) => (
                 <tr key={problem._id} className="hover:bg-arena-dark/50">
                   <td className="px-6 py-4">
                     <p className="text-white font-medium">{problem.title}</p>
@@ -125,6 +164,15 @@ const TeacherProblems = () => {
                   </td>
                   <td className="px-6 py-4 hidden lg:table-cell">
                     <span className="text-gray-400">{problem.testCases?.length || 0}</span>
+                  </td>
+                  <td className="px-6 py-4 hidden xl:table-cell">
+                    <div className="flex flex-wrap gap-1">
+                      {(problem.allowedLanguages || []).map(lang => (
+                        <span key={lang} className="px-1.5 py-0.5 rounded text-xs font-medium uppercase bg-arena-dark text-gray-300">
+                          {lang}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end space-x-2">

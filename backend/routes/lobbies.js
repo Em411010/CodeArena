@@ -279,14 +279,11 @@ router.post('/', protect, authorize('teacher', 'admin'), requireApproval, [
       }
     }
 
-    // Verify all problems exist and are accessible (own problems or shared problems)
-    const validProblems = await CompetitionProblem.find({
-      _id: { $in: problems },
-      $or: [
-        { createdBy: req.user.id },
-        { isShared: true }
-      ]
-    });
+    // Verify all problems exist and are accessible (own problems, shared problems, or admin)
+    const problemQuery = req.user.role === 'admin'
+      ? { _id: { $in: problems } }
+      : { _id: { $in: problems }, $or: [{ createdBy: req.user.id }, { isShared: true }] };
+    const validProblems = await CompetitionProblem.find(problemQuery);
 
     if (validProblems.length !== problems.length) {
       return res.status(400).json({
@@ -746,6 +743,88 @@ router.put('/:id/reveal-problem', protect, authorize('teacher', 'admin'), async 
       success: false,
       message: 'Server error'
     });
+  }
+});
+
+// @route   PUT /api/lobbies/:id/pause-timer
+// @desc    Pause the current problem timer (Host control)
+// @access  Private/Teacher (owner) or Admin
+router.put('/:id/pause-timer', protect, authorize('teacher', 'admin'), async (req, res) => {
+  try {
+    const lobby = await Lobby.findById(req.params.id);
+    if (!lobby) return res.status(404).json({ success: false, message: 'Lobby not found' });
+    if (lobby.teacher.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (lobby.matchType !== 'QUIZ_BEE') {
+      return res.status(400).json({ success: false, message: 'Only for Quiz Bee matches' });
+    }
+    if (lobby.status !== 'ONGOING') {
+      return res.status(400).json({ success: false, message: 'Match is not ongoing' });
+    }
+    if (lobby.isPaused) {
+      return res.status(400).json({ success: false, message: 'Timer is already paused' });
+    }
+    if (!lobby.problemStartTime) {
+      return res.status(400).json({ success: false, message: 'Problem has not been revealed yet' });
+    }
+
+    // Calculate how many seconds are left and save it
+    const elapsed = Math.floor((Date.now() - new Date(lobby.problemStartTime).getTime()) / 1000);
+    const totalSec = (lobby.timePerProblem || 5) * 60;
+    const remaining = Math.max(0, totalSec - elapsed);
+
+    lobby.isPaused = true;
+    lobby.pausedTimeLeft = remaining;
+    await lobby.save();
+
+    const io = req.app.get('io');
+    io.to(`lobby-${lobby._id}`).emit('timer-paused', {
+      lobbyId: lobby._id.toString(),
+      pausedTimeLeft: remaining
+    });
+
+    res.json({ success: true, message: 'Timer paused', data: { pausedTimeLeft: remaining } });
+  } catch (error) {
+    console.error('Error pausing timer:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @route   PUT /api/lobbies/:id/resume-timer
+// @desc    Resume the current problem timer (Host control)
+// @access  Private/Teacher (owner) or Admin
+router.put('/:id/resume-timer', protect, authorize('teacher', 'admin'), async (req, res) => {
+  try {
+    const lobby = await Lobby.findById(req.params.id);
+    if (!lobby) return res.status(404).json({ success: false, message: 'Lobby not found' });
+    if (lobby.teacher.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (lobby.matchType !== 'QUIZ_BEE') {
+      return res.status(400).json({ success: false, message: 'Only for Quiz Bee matches' });
+    }
+    if (!lobby.isPaused) {
+      return res.status(400).json({ success: false, message: 'Timer is not paused' });
+    }
+
+    // Reset problemStartTime so remaining = pausedTimeLeft from now
+    const remaining = lobby.pausedTimeLeft ?? 0;
+    lobby.isPaused = false;
+    lobby.pausedTimeLeft = null;
+    lobby.problemStartTime = new Date(Date.now() - ((lobby.timePerProblem * 60 - remaining) * 1000));
+    await lobby.save();
+
+    const io = req.app.get('io');
+    io.to(`lobby-${lobby._id}`).emit('timer-resumed', {
+      lobbyId: lobby._id.toString(),
+      resumedTimeLeft: remaining
+    });
+
+    res.json({ success: true, message: 'Timer resumed', data: { resumedTimeLeft: remaining } });
+  } catch (error) {
+    console.error('Error resuming timer:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 

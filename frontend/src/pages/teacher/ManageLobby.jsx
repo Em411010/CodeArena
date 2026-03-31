@@ -2,8 +2,103 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { lobbiesAPI, submissionsAPI } from '../../services/api';
 import socketService from '../../services/socket';
-import { ArrowLeft, Loader2, Trophy, Users, Clock, Copy, Square, Download, Eye, ArrowRight, AlertCircle, Play } from 'lucide-react';
+import { ArrowLeft, Loader2, Trophy, Users, Clock, Copy, Square, Download, Eye, ArrowRight, AlertCircle, Play, Timer } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const MatchCountdown = ({ endTime }) => {
+  const calcRemaining = () => Math.max(0, Math.floor((new Date(endTime) - Date.now()) / 1000));
+  const [remaining, setRemaining] = useState(calcRemaining);
+
+  useEffect(() => {
+    const interval = setInterval(() => setRemaining(calcRemaining()), 1000);
+    return () => clearInterval(interval);
+  }, [endTime]);
+
+  if (!endTime) return null;
+
+  const h = Math.floor(remaining / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+  const formatted = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
+  const isLow = remaining <= 60;
+  const isMedium = remaining <= 300;
+
+  return (
+    <span className={`flex items-center gap-1 font-mono font-semibold ${
+      isLow ? 'text-red-400 animate-pulse' : isMedium ? 'text-yellow-400' : 'text-green-400'
+    }`}>
+      <Timer className="h-4 w-4" />
+      {remaining === 0 ? 'Ending...' : formatted}
+    </span>
+  );
+};
+
+const LeaderboardCountdown = ({ endTime }) => {
+  const calcRemaining = () => Math.max(0, Math.floor((new Date(endTime) - Date.now()) / 1000));
+  const [remaining, setRemaining] = useState(calcRemaining);
+
+  useEffect(() => {
+    const interval = setInterval(() => setRemaining(calcRemaining()), 1000);
+    return () => clearInterval(interval);
+  }, [endTime]);
+
+  const h = Math.floor(remaining / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+  const formatted = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
+  const isLow = remaining <= 60;
+  const isMedium = remaining <= 300;
+
+  return (
+    <div className={`flex flex-col items-center justify-center py-6 border-b border-arena-border ${
+      isLow ? 'bg-red-500/10' : isMedium ? 'bg-yellow-500/10' : 'bg-green-500/5'
+    }`}>
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-1">Time Remaining</p>
+      <div className={`text-6xl font-black font-mono tabular-nums tracking-tight ${
+        isLow ? 'text-red-400 animate-pulse' : isMedium ? 'text-yellow-400' : 'text-green-400'
+      }`}>
+        {remaining === 0 ? 'ENDING...' : formatted}
+      </div>
+      {isLow && remaining > 0 && (
+        <p className="text-red-400 text-xs font-semibold mt-1 animate-pulse">⚠ Less than 1 minute left!</p>
+      )}
+    </div>
+  );
+};
+
+const QuizBeeProblemCountdown = ({ seconds, revealed, expired }) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const formatted = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
+  const isLow = seconds <= 60 && seconds > 0;
+  const isMedium = seconds <= 300 && seconds > 60;
+
+  return (
+    <div className={`flex flex-col items-center justify-center py-6 border-b border-arena-border ${
+      expired ? 'bg-red-500/10' : isLow ? 'bg-red-500/10' : isMedium ? 'bg-yellow-500/10' : 'bg-arena-card/50'
+    }`}>
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-1">Problem Time Remaining</p>
+      <div className={`text-6xl font-black font-mono tabular-nums tracking-tight ${
+        expired ? 'text-red-400' : isLow ? 'text-red-400 animate-pulse' : isMedium ? 'text-yellow-400' : 'text-green-400'
+      }`}>
+        {expired ? 'EXPIRED' : !revealed ? 'PAUSED' : formatted}
+      </div>
+      {!revealed && !expired && (
+        <p className="text-yellow-400 text-xs font-semibold mt-1">⏸ Waiting for problem reveal</p>
+      )}
+      {isLow && revealed && !expired && (
+        <p className="text-red-400 text-xs font-semibold mt-1 animate-pulse">⚠ Less than 1 minute left!</p>
+      )}
+    </div>
+  );
+};
 
 const ManageLobby = () => {
   const { id } = useParams();
@@ -20,6 +115,7 @@ const ManageLobby = () => {
     problemRevealed: false
   });
   const [problemTimeLeft, setProblemTimeLeft] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Simple countdown timer ref
   const timerRef = useRef(null);
@@ -103,12 +199,28 @@ const ManageLobby = () => {
       if (data.lobbyId === id) {
         console.log('[ManageLobby] problem-revealed timePerProblem:', data.timePerProblem);
         setQuizBeeControl(prev => ({ ...prev, problemRevealed: true, timeExpired: false }));
+        setIsPaused(false);
         // Start the countdown from timePerProblem
         if (data.timePerProblem) {
           startCountdown(data.timePerProblem * 60);
         }
         // Use skipTimer=true so fetchData doesn't restart/override the countdown
         fetchData(true);
+      }
+    });
+
+    socket.on('timer-paused', (data) => {
+      if (data.lobbyId === id) {
+        stopCountdown();
+        setProblemTimeLeft(data.pausedTimeLeft);
+        setIsPaused(true);
+      }
+    });
+
+    socket.on('timer-resumed', (data) => {
+      if (data.lobbyId === id) {
+        setIsPaused(false);
+        startCountdown(data.resumedTimeLeft);
       }
     });
 
@@ -120,6 +232,8 @@ const ManageLobby = () => {
       socket.off('problem-time-expired');
       socket.off('problem-change');
       socket.off('problem-revealed');
+      socket.off('timer-paused');
+      socket.off('timer-resumed');
     };
   }, [id]);
 
@@ -223,9 +337,32 @@ const ManageLobby = () => {
     try {
       await lobbiesAPI.revealProblem(id);
       setQuizBeeControl(prev => ({ ...prev, problemRevealed: true }));
+      setIsPaused(false);
       toast.success('Problem revealed to participants!');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to reveal problem');
+    }
+  };
+
+  const handlePauseTimer = async () => {
+    try {
+      await lobbiesAPI.pauseTimer(id);
+      stopCountdown();
+      setIsPaused(true);
+      toast('⏸ Timer paused', { icon: '⏸' });
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to pause timer');
+    }
+  };
+
+  const handleResumeTimer = async () => {
+    try {
+      const { data } = await lobbiesAPI.resumeTimer(id);
+      setIsPaused(false);
+      startCountdown(data.data.resumedTimeLeft);
+      toast.success('▶ Timer resumed');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to resume timer');
     }
   };
 
@@ -511,6 +648,24 @@ const ManageLobby = () => {
               <Eye className="h-5 w-5 mr-2" />
               {quizBeeControl.problemRevealed ? 'Problem Revealed' : 'Reveal Problem to Participants'}
             </button>
+
+            {quizBeeControl.problemRevealed && !quizBeeControl.timeExpired && (
+              isPaused ? (
+                <button
+                  onClick={handleResumeTimer}
+                  className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  ▶ Resume Timer
+                </button>
+              ) : (
+                <button
+                  onClick={handlePauseTimer}
+                  className="inline-flex items-center justify-center px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                >
+                  ⏸ Pause Timer
+                </button>
+              )
+            )}
             
             <button
               onClick={handleNextProblem}
@@ -627,35 +782,114 @@ const ManageLobby = () => {
 
       <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden">
         {activeTab === 'leaderboard' && (
-          <table className="w-full">
-            <thead className="bg-arena-dark">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Rank</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Score</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Solved</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-arena-border">
-              {leaderboard.map((entry) => (
-                <tr key={entry.user._id} className="hover:bg-arena-dark/50">
-                  <td className="px-6 py-4">
-                    <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-bold ${
-                      entry.rank === 1 ? 'bg-yellow-500 text-black' :
-                      entry.rank === 2 ? 'bg-gray-400 text-black' :
-                      entry.rank === 3 ? 'bg-orange-500 text-black' :
-                      'bg-arena-border text-white'
-                    }`}>
-                      {entry.rank}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-white font-medium">{entry.user.username}</td>
-                  <td className="px-6 py-4 text-white font-bold">{entry.score}</td>
-                  <td className="px-6 py-4 text-gray-400">{entry.solvedCount}</td>
+          <div>
+            {/* Big countdown timer — per-problem for Quiz Bee, total match for Standard */}
+            {lobby?.status === 'ONGOING' && (
+              lobby?.matchType === 'QUIZ_BEE'
+                ? <QuizBeeProblemCountdown
+                    seconds={problemTimeLeft}
+                    revealed={quizBeeControl.problemRevealed}
+                    expired={quizBeeControl.timeExpired}
+                  />
+                : lobby?.endTime && <LeaderboardCountdown endTime={lobby.endTime} />
+            )}
+
+            {/* Podium — top 3 */}
+            {leaderboard.length > 0 && (
+              <div className="px-6 pt-6 pb-8">
+                <div className="flex items-end justify-center gap-4">
+                  {/* 2nd place */}
+                  {leaderboard[1] ? (
+                    <div className="flex flex-col items-center gap-2 w-36">
+                      <div className="w-12 h-12 rounded-full bg-gray-400/20 border-2 border-gray-400 flex items-center justify-center text-lg font-bold text-gray-300">
+                        {leaderboard[1].user.username.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-gray-300 font-semibold text-sm text-center truncate w-full text-center">{leaderboard[1].user.username}</span>
+                      <span className="text-gray-400 text-xs font-mono">{leaderboard[1].score} pts</span>
+                      <div className="w-full rounded-t-lg flex flex-col items-center justify-end pb-3 pt-4"
+                        style={{ height: '96px', background: 'linear-gradient(to top, #6b7280, #9ca3af)' }}>
+                        <span className="text-2xl font-black text-white drop-shadow">2</span>
+                        <span className="text-xs text-gray-200 mt-0.5">Silver</span>
+                      </div>
+                    </div>
+                  ) : <div className="w-36" />}
+
+                  {/* 1st place */}
+                  <div className="flex flex-col items-center gap-2 w-40">
+                    <div className="text-2xl">👑</div>
+                    <div className="w-14 h-14 rounded-full bg-yellow-500/20 border-2 border-yellow-400 flex items-center justify-center text-xl font-bold text-yellow-300">
+                      {leaderboard[0].user.username.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-white font-bold text-sm text-center truncate w-full text-center">{leaderboard[0].user.username}</span>
+                    <span className="text-yellow-400 text-xs font-mono font-bold">{leaderboard[0].score} pts</span>
+                    <div className="w-full rounded-t-lg flex flex-col items-center justify-end pb-3 pt-4"
+                      style={{ height: '128px', background: 'linear-gradient(to top, #b45309, #fbbf24)' }}>
+                      <span className="text-3xl font-black text-white drop-shadow">1</span>
+                      <span className="text-xs text-yellow-100 mt-0.5">Gold</span>
+                    </div>
+                  </div>
+
+                  {/* 3rd place */}
+                  {leaderboard[2] ? (
+                    <div className="flex flex-col items-center gap-2 w-36">
+                      <div className="w-12 h-12 rounded-full bg-orange-800/30 border-2 border-orange-600 flex items-center justify-center text-lg font-bold text-orange-400">
+                        {leaderboard[2].user.username.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-orange-300 font-semibold text-sm text-center truncate w-full text-center">{leaderboard[2].user.username}</span>
+                      <span className="text-orange-400/70 text-xs font-mono">{leaderboard[2].score} pts</span>
+                      <div className="w-full rounded-t-lg flex flex-col items-center justify-end pb-3 pt-4"
+                        style={{ height: '72px', background: 'linear-gradient(to top, #78350f, #c2713a)' }}>
+                        <span className="text-2xl font-black text-white drop-shadow">3</span>
+                        <span className="text-xs text-orange-200 mt-0.5">Bronze</span>
+                      </div>
+                    </div>
+                  ) : <div className="w-36" />}
+                </div>
+                {/* Base platform */}
+                <div className="h-2 rounded-full mx-4 mt-0" style={{ background: 'linear-gradient(to right, #374151, #4b5563, #374151)' }} />
+              </div>
+            )}
+
+            {/* Full leaderboard table */}
+            <table className="w-full">
+              <thead className="bg-arena-dark">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Rank</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Score</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Solved</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-arena-border">
+                {leaderboard.map((entry) => (
+                  <tr key={entry.user._id} className={`hover:bg-arena-dark/50 ${
+                    entry.rank === 1 ? 'bg-yellow-500/5' :
+                    entry.rank === 2 ? 'bg-gray-400/5' :
+                    entry.rank === 3 ? 'bg-orange-700/5' : ''
+                  }`}>
+                    <td className="px-6 py-4">
+                      <span className={`w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-bold ${
+                        entry.rank === 1 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/30' :
+                        entry.rank === 2 ? 'bg-gray-400 text-black' :
+                        entry.rank === 3 ? 'bg-orange-600 text-white' :
+                        'bg-arena-border text-white'
+                      }`}>
+                        {entry.rank}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-white font-medium">
+                      {entry.rank <= 3 && (
+                        <span className="mr-2">{entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉'}</span>
+                      )}
+                      {entry.user.username}
+                    </td>
+                    <td className="px-6 py-4 text-white font-bold">{entry.score}</td>
+                    <td className="px-6 py-4 text-gray-400">{entry.solvedCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {activeTab === 'submissions' && (

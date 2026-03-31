@@ -43,7 +43,10 @@ const QuizBeeArena = () => {
   const [problemRevealed, setProblemRevealed] = useState(false);
   const [waitingForHost, setWaitingForHost] = useState(true);
   const [timeExpired, setTimeExpired] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [matchTimeLeft, setMatchTimeLeft] = useState(0);
   const timerRef = useRef(null);
+  const matchTimerRef = useRef(null);
 
   const startCountdown = (seconds) => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -73,6 +76,16 @@ const QuizBeeArena = () => {
       timerRef.current = null;
     }
   };
+
+  // Match-level countdown (total time remaining)
+  useEffect(() => {
+    if (!lobby?.endTime) return;
+    const calcRemaining = () => Math.max(0, Math.floor((new Date(lobby.endTime) - Date.now()) / 1000));
+    setMatchTimeLeft(calcRemaining());
+    if (matchTimerRef.current) clearInterval(matchTimerRef.current);
+    matchTimerRef.current = setInterval(() => setMatchTimeLeft(calcRemaining()), 1000);
+    return () => clearInterval(matchTimerRef.current);
+  }, [lobby?.endTime]);
 
   useEffect(() => {
     fetchLobby();
@@ -116,12 +129,31 @@ const QuizBeeArena = () => {
         setProblemRevealed(true);
         setWaitingForHost(false);
         setTimeExpired(false);
+        setIsPaused(false);
         toast.success('Problem revealed! Start solving! 🚀');
         if (data.timePerProblem) {
           startCountdown(data.timePerProblem * 60);
         }
-        // Use skipTimer=true so fetchLobby doesn't restart/override the countdown
         fetchLobby(true);
+      }
+    });
+
+    // Teacher paused the timer
+    socket.on('timer-paused', (data) => {
+      if (data.lobbyId === id) {
+        stopCountdown();
+        setProblemTimeLeft(data.pausedTimeLeft);
+        setIsPaused(true);
+        toast('⏸ Match paused by host', { icon: '⏸' });
+      }
+    });
+
+    // Teacher resumed the timer
+    socket.on('timer-resumed', (data) => {
+      if (data.lobbyId === id) {
+        setIsPaused(false);
+        startCountdown(data.resumedTimeLeft);
+        toast.success('▶ Match resumed!');
       }
     });
 
@@ -131,6 +163,7 @@ const QuizBeeArena = () => {
         stopCountdown();
         setProblemTimeLeft(0);
         setTimeExpired(true);
+        setIsPaused(false);
         setProblemRevealed(false);
         setWaitingForHost(true);
         toast('⏰ Time is up! Waiting for host...', { icon: '⏰' });
@@ -143,6 +176,8 @@ const QuizBeeArena = () => {
       socket.off('problem-change');
       socket.off('problem-revealed');
       socket.off('problem-time-expired');
+      socket.off('timer-paused');
+      socket.off('timer-resumed');
       socketService.removeAllListeners();
     };
   }, [id, navigate, language]);
@@ -294,8 +329,26 @@ const QuizBeeArena = () => {
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <div className={`flex-1 flex flex-col lg:flex-row min-h-0 ${showLeaderboard ? 'lg:mr-80' : ''}`}>
+          {/* Paused overlay — highest priority */}
+          {isPaused && (
+            <div className="absolute inset-0 bg-arena-bg/95 backdrop-blur-sm z-20 flex items-center justify-center">
+              <div className="text-center max-w-md px-6">
+                <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-yellow-500/20 border-2 border-yellow-500/50 mb-6">
+                  <span className="text-5xl">⏸</span>
+                </div>
+                <h2 className="text-4xl font-black text-yellow-400 mb-3">Match Paused</h2>
+                <p className="text-gray-300 text-lg mb-2">The host has paused the timer.</p>
+                <p className="text-gray-400 text-sm">Please wait for the host to resume the match.</p>
+                <div className="mt-6 flex items-center justify-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-yellow-400 animate-bounce" style={{animationDelay: '0ms'}}></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-400 animate-bounce" style={{animationDelay: '150ms'}}></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-400 animate-bounce" style={{animationDelay: '300ms'}}></div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Waiting for Host Overlay */}
-          {waitingForHost && !problemRevealed && (
+          {waitingForHost && !problemRevealed && !isPaused && (
             <div className="absolute inset-0 bg-arena-bg/95 backdrop-blur-sm z-10 flex items-center justify-center">
               <div className="text-center max-w-md px-6">
                 <div className="mb-6">
@@ -406,11 +459,20 @@ const QuizBeeArena = () => {
                 }}
                 className="px-3 py-1.5 bg-arena-dark border border-arena-border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                <option value="c">C</option>
+                {(() => {
+                  const currentProblem = problems[currentProblemIndex];
+                  const matchLang = lobby?.settings?.matchLanguage;
+                  const langs = matchLang
+                    ? (currentProblem?.allowedLanguages?.includes(matchLang) ? [matchLang] : currentProblem?.allowedLanguages || ['c'])
+                    : (currentProblem?.allowedLanguages || ['c']);
+                  return langs.map(lang => (
+                    <option key={lang} value={lang}>{lang.toUpperCase()}</option>
+                  ));
+                })()}
               </select>
               <button
                 onClick={handleSubmit}
-                disabled={submitting || waitingForHost || !problemRevealed || timeExpired}
+                disabled={submitting || waitingForHost || !problemRevealed || timeExpired || isPaused}
                 className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
               >
                 {submitting ? (
@@ -499,6 +561,29 @@ const QuizBeeArena = () => {
                   <X className="h-5 w-5" />
                 </button>
               </div>
+              {lobby?.endTime && (
+                <div className={`flex items-center justify-between px-3 py-2 rounded-lg mb-4 ${
+                  matchTimeLeft <= 60 ? 'bg-red-500/20 border border-red-500/40' :
+                  matchTimeLeft <= 300 ? 'bg-yellow-500/20 border border-yellow-500/40' :
+                  'bg-arena-card border border-arena-border'
+                }`}>
+                  <span className="text-gray-400 text-xs">Match Time Left</span>
+                  <span className={`font-mono font-bold text-sm ${
+                    matchTimeLeft <= 60 ? 'text-red-400' :
+                    matchTimeLeft <= 300 ? 'text-yellow-400' :
+                    'text-green-400'
+                  }`}>
+                    {(() => {
+                      const h = Math.floor(matchTimeLeft / 3600);
+                      const m = Math.floor((matchTimeLeft % 3600) / 60);
+                      const s = matchTimeLeft % 60;
+                      return h > 0
+                        ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+                        : `${m}:${String(s).padStart(2, '0')}`;
+                    })()}
+                  </span>
+                </div>
+              )}
               <div className="space-y-2">
                 {leaderboard.map((entry, idx) => (
                   <div
