@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { competitionProblemsAPI } from '../../services/api';
-import { FileCode, Plus, Loader2, Edit, Trash2, Lock } from 'lucide-react';
+import { FileCode, Plus, Loader2, Edit, Trash2, Lock, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -13,6 +13,7 @@ const TeacherProblems = () => {
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [langFilter, setLangFilter] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetchProblems();
@@ -41,9 +42,19 @@ const TeacherProblems = () => {
     }
   };
 
-  const filteredProblems = langFilter
-    ? problems.filter(p => p.allowedLanguages?.includes(langFilter))
-    : problems;
+  const DIFFICULTY_ORDER = { easy: 0, medium: 1, hard: 2 };
+
+  const filteredProblems = problems
+    .filter(p => {
+      const matchesLang = !langFilter || p.allowedLanguages?.includes(langFilter);
+      const matchesSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
+      return matchesLang && matchesSearch;
+    })
+    .sort((a, b) => {
+      const diffDiff = (DIFFICULTY_ORDER[a.difficulty] ?? 3) - (DIFFICULTY_ORDER[b.difficulty] ?? 3);
+      if (diffDiff !== 0) return diffDiff;
+      return a.title.localeCompare(b.title);
+    });
 
   const getDifficultyColor = (diff) => {
     switch (diff) {
@@ -78,7 +89,18 @@ const TeacherProblems = () => {
         </Link>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        {/* Search bar */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search problems..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 bg-arena-dark border border-arena-border rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500"
+          />
+        </div>
         <span className="text-gray-400 text-sm">Filter by language:</span>
         <div className="flex flex-wrap gap-2">
           <button
@@ -121,8 +143,8 @@ const TeacherProblems = () => {
       ) : filteredProblems.length === 0 ? (
         <div className="bg-arena-card border border-arena-border rounded-xl p-12 text-center">
           <FileCode className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-white font-medium mb-2">No problems match this language</h3>
-          <p className="text-gray-400 text-sm">Try selecting a different language filter.</p>
+          <h3 className="text-white font-medium mb-2">No problems match</h3>
+          <p className="text-gray-400 text-sm">Try adjusting your search or language filter.</p>
         </div>
       ) : (
         <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden">
