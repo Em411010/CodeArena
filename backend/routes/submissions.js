@@ -118,12 +118,6 @@ router.post('/', protect, [
     // Notify lobby about new submission (so teacher can see updates in real-time)
     if (lobbyId) {
       const io = req.app.get('io');
-      io.to(`lobby-${lobbyId}`).emit('leaderboard-update', {
-        lobbyId,
-        userId: req.user.id,
-        problemId,
-        verdict: executionResult.verdict
-      });
 
       // Update lobby participant score if competition submission
       if (executionResult.verdict === 'ACCEPTED') {
@@ -140,6 +134,14 @@ router.post('/', protect, [
             participant.solvedProblems.push(problemId);
             participant.score += score;
             await lobby.save();
+
+            // Emit leaderboard update AFTER score is saved
+            io.to(`lobby-${lobbyId}`).emit('leaderboard-update', {
+              lobbyId,
+              userId: req.user.id,
+              problemId,
+              verdict: executionResult.verdict
+            });
 
             // Check if all participants have solved all problems
             const allParticipantsFinished = lobby.participants.every(
@@ -158,8 +160,24 @@ router.post('/', protect, [
                 reason: 'All participants completed all problems'
               });
             }
+          } else {
+            // Already solved — still notify for submissions tab update
+            io.to(`lobby-${lobbyId}`).emit('leaderboard-update', {
+              lobbyId,
+              userId: req.user.id,
+              problemId,
+              verdict: executionResult.verdict
+            });
           }
         }
+      } else {
+        // Non-accepted verdict — just notify for submissions tab
+        io.to(`lobby-${lobbyId}`).emit('leaderboard-update', {
+          lobbyId,
+          userId: req.user.id,
+          problemId,
+          verdict: executionResult.verdict
+        });
       }
     }
 

@@ -80,6 +80,14 @@ const lobbySchema = new mongoose.Schema({
   problemStartTime: {
     type: Date // When current problem started (for QUIZ_BEE mode)
   },
+  isPaused: {
+    type: Boolean,
+    default: false
+  },
+  pausedTimeLeft: {
+    type: Number, // seconds remaining when paused
+    default: null
+  },
   settings: {
     maxParticipants: {
       type: Number,
@@ -92,6 +100,10 @@ const lobbySchema = new mongoose.Schema({
     showLeaderboard: {
       type: Boolean,
       default: true
+    },
+    matchLanguage: {
+      type: String,
+      default: ''
     }
   }
 }, {

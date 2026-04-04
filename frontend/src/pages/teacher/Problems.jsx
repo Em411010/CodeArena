@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { competitionProblemsAPI } from '../../services/api';
-import { FileCode, Plus, Loader2, Edit, Trash2, Lock } from 'lucide-react';
+import { Code2, Plus, Loader2, Edit, Trash2, Lock, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+
+const LANGUAGES = ['c', 'cpp', 'python', 'javascript', 'java'];
 
 const TeacherProblems = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [langFilter, setLangFilter] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetchProblems();
@@ -37,6 +41,20 @@ const TeacherProblems = () => {
       toast.error(error.response?.data?.message || 'Failed to delete problem');
     }
   };
+
+  const DIFFICULTY_ORDER = { easy: 0, medium: 1, hard: 2 };
+
+  const filteredProblems = problems
+    .filter(p => {
+      const matchesLang = !langFilter || p.allowedLanguages?.includes(langFilter);
+      const matchesSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
+      return matchesLang && matchesSearch;
+    })
+    .sort((a, b) => {
+      const diffDiff = (DIFFICULTY_ORDER[a.difficulty] ?? 3) - (DIFFICULTY_ORDER[b.difficulty] ?? 3);
+      if (diffDiff !== 0) return diffDiff;
+      return a.title.localeCompare(b.title);
+    });
 
   const getDifficultyColor = (diff) => {
     switch (diff) {
@@ -71,9 +89,45 @@ const TeacherProblems = () => {
         </Link>
       </div>
 
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        {/* Search bar */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search problems..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 bg-arena-dark border border-arena-border rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500"
+          />
+        </div>
+        <span className="text-gray-400 text-sm">Filter by language:</span>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setLangFilter('')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              langFilter === '' ? 'bg-primary-600 text-white' : 'bg-arena-dark text-gray-400 hover:text-white'
+            }`}
+          >
+            All
+          </button>
+          {LANGUAGES.map(lang => (
+            <button
+              key={lang}
+              onClick={() => setLangFilter(lang === langFilter ? '' : lang)}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors uppercase ${
+                langFilter === lang ? 'bg-primary-600 text-white' : 'bg-arena-dark text-gray-400 hover:text-white'
+              }`}
+            >
+              {lang}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {problems.length === 0 ? (
         <div className="bg-arena-card border border-arena-border rounded-xl p-12 text-center">
-          <FileCode className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <Code2 className="h-12 w-12 text-gray-600 mx-auto mb-4" />
           <h3 className="text-white font-medium mb-2">No problems yet</h3>
           <p className="text-gray-400 text-sm mb-4">
             Create your first competition problem to use in matches
@@ -86,6 +140,12 @@ const TeacherProblems = () => {
             Create Problem
           </Link>
         </div>
+      ) : filteredProblems.length === 0 ? (
+        <div className="bg-arena-card border border-arena-border rounded-xl p-12 text-center">
+          <Code2 className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <h3 className="text-white font-medium mb-2">No problems match</h3>
+          <p className="text-gray-400 text-sm">Try adjusting your search or language filter.</p>
+        </div>
       ) : (
         <div className="bg-arena-card border border-arena-border rounded-xl overflow-hidden">
           <table className="w-full">
@@ -96,11 +156,12 @@ const TeacherProblems = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden md:table-cell">Difficulty</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden md:table-cell">Max Score</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden lg:table-cell">Test Cases</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase hidden xl:table-cell">Languages</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-arena-border">
-              {problems.map((problem) => (
+              {filteredProblems.map((problem) => (
                 <tr key={problem._id} className="hover:bg-arena-dark/50">
                   <td className="px-6 py-4">
                     <p className="text-white font-medium">{problem.title}</p>
@@ -125,6 +186,15 @@ const TeacherProblems = () => {
                   </td>
                   <td className="px-6 py-4 hidden lg:table-cell">
                     <span className="text-gray-400">{problem.testCases?.length || 0}</span>
+                  </td>
+                  <td className="px-6 py-4 hidden xl:table-cell">
+                    <div className="flex flex-wrap gap-1">
+                      {(problem.allowedLanguages || []).map(lang => (
+                        <span key={lang} className="px-1.5 py-0.5 rounded text-xs font-medium uppercase bg-arena-dark text-gray-300">
+                          {lang}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end space-x-2">

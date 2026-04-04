@@ -91,7 +91,11 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<MainLayout />}>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={
+          <PublicRoute>
+            <Landing />
+          </PublicRoute>
+        } />
         <Route path="/login" element={
           <PublicRoute>
             <Login />
@@ -184,7 +188,7 @@ function App() {
         <div data-theme="codearena" className="min-h-screen bg-base-200">
           <AppRoutes />
           <Toaster
-            position="top-right"
+            position="top-center"
             gutter={12}
             containerStyle={{ top: 20 }}
             toastOptions={{
