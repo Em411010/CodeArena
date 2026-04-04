@@ -21,6 +21,25 @@ const getSolvedKey = () => {
   } catch { return 'codearena_solved_guest'; }
 };
 
+const getCodeKey = (problemId, lang) => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return `codearena_code_${user._id || 'guest'}_${problemId}_${lang}`;
+  } catch { return `codearena_code_guest_${problemId}_${lang}`; }
+};
+
+const saveCode = (problemId, lang, code) => {
+  try {
+    localStorage.setItem(getCodeKey(problemId, lang), code);
+  } catch {}
+};
+
+const loadCode = (problemId, lang) => {
+  try {
+    return localStorage.getItem(getCodeKey(problemId, lang)) || null;
+  } catch { return null; }
+};
+
 const markSolved = (problemId) => {
   try {
     const key = getSolvedKey();
@@ -54,6 +73,7 @@ const ProblemSolver = () => {
   const [code, setCode] = useState(defaultCode.c);
   const [result, setResult] = useState(null);
   const [showDescription, setShowDescription] = useState(true);
+  const [hasSavedCode, setHasSavedCode] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const countdownRef = useRef(null);
 
@@ -66,9 +86,11 @@ const ProblemSolver = () => {
     try {
       const { data } = await sampleProblemsAPI.getById(id);
       setProblem(data.data);
-      // Practice mode: always allow all supported languages, default to C
+      // Restore saved code; fall back to default template
+      const savedCode = loadCode(id, 'c');
       setLanguage('c');
-      setCode(defaultCode.c);
+      setCode(savedCode !== null ? savedCode : defaultCode.c);
+      setHasSavedCode(savedCode !== null);
     } catch (error) {
       toast.error('Failed to load problem');
     } finally {
@@ -77,8 +99,11 @@ const ProblemSolver = () => {
   };
 
   const handleLanguageChange = (newLang) => {
+    // Save current code before switching
+    saveCode(id, language, code);
+    const savedCode = loadCode(id, newLang);
     setLanguage(newLang);
-    setCode(defaultCode[newLang] || '');
+    setCode(savedCode !== null ? savedCode : (defaultCode[newLang] || ''));
     setResult(null);
   };
 
@@ -103,6 +128,7 @@ const ProblemSolver = () => {
 
       if (data.data.verdict === 'ACCEPTED') {
         markSolved(id);
+        saveCode(id, language, code);
         toast.success('All test cases passed! 🎉');
         // Countdown to go back
         let secs = 3;
@@ -260,12 +286,18 @@ const ProblemSolver = () => {
         </div>
 
         <div className="flex flex-col min-h-0">
+          {hasSavedCode && (
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+              <span className="text-green-400 text-xs">Your previous code has been restored.</span>
+            </div>
+          )}
           <div className="flex-1 bg-arena-card border border-arena-border rounded-xl overflow-hidden min-h-[300px]">
             <Editor
               height="100%"
               language={languageMap[language]}
               value={code}
-              onChange={setCode}
+              onChange={(val) => { setCode(val); saveCode(id, language, val); }}
               theme="vs-dark"
               options={{
                 minimap: { enabled: false },
